@@ -33,9 +33,14 @@
 			  "description": "The model to use for generating completions"
 			},
 			"ollama-coder.system-message": {
-				"type": "string | undefined",
-				"default": null,
-				"description": "The system message to use for code completions"
+				"type": "string",
+				"default": "You are a code autocompletion engine. Respond with a continuation of the code provided and nothing else. Code should not be in a code block. Anything that is not code should be written as a code comment.",
+				"description": "The system message to use for code completions. Type DEFAULT for Makefile."
+			  },
+			  "ollama-coder.max-tokens-predicted": {
+				"type": "integer",
+				"default": 500,
+				"description": "The system message to use for code completions. Type DEFAULT for Makefile."
 			  }
 		  }
 		}

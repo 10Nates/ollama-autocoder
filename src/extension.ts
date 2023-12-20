@@ -5,8 +5,9 @@ import axios from "axios";
 
 const apiEndpoint: string = vscode.workspace.getConfiguration("ollama-coder").get("apiEndpoint") || "http://localhost:11434/api/generate";
 const apiModel: string = vscode.workspace.getConfiguration("ollama-coder").get("model") || "deepseek-coder";
-const apiSystemMessage: string | undefined = vscode.workspace.getConfiguration("ollama-coder").get("system-message");
-const documentRange = 2000;
+let apiSystemMessage: string | undefined = vscode.workspace.getConfiguration("ollama-coder").get("system-message");
+if (apiSystemMessage == "DEFAULT") apiSystemMessage = undefined;
+const numPredict: number = vscode.workspace.getConfiguration("ollama-coder").get("max-tokens-predicted") || 500;
 
 // This method is called when your extension is activated
 function activate(context: vscode.ExtensionContext) {
@@ -15,7 +16,7 @@ function activate(context: vscode.ExtensionContext) {
 	const provider = vscode.languages.registerCompletionItemProvider("javascript", {
 		async provideCompletionItems(document, position) {
 			// Get the current prompt
-			const prompt = document.lineAt(position.line).text.substring(0, position.character);
+			const prompt = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
 			// Check if the prompt is not empty and ends with a dot
 			if (prompt) {
 				// Create a completion item
@@ -35,7 +36,7 @@ function activate(context: vscode.ExtensionContext) {
 			}
 		},
 	},
-		"."
+		"\n", " "
 	);
 
 	// Add the completion provider to the context
@@ -60,7 +61,7 @@ function activate(context: vscode.ExtensionContext) {
 							stream: false,
 							system: apiSystemMessage,
 							options: {
-								num_predict: 100
+								num_predict: numPredict
 							}
 						}
 						);
