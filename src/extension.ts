@@ -110,38 +110,6 @@ function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(disposable);
 }
 
-// get a a completion from Ollama
-async function autocomplete(document: vscode.TextDocument, position: vscode.Position, prompt: string) {
-	try {
-		// Make a request to the ollama.ai REST API
-		const response = await axios.post(apiEndpoint, {
-			model: apiModel, // Change this to the model you want to use
-			prompt: prompt,
-			stream: false,
-			system: apiSystemMessage,
-			options: {
-				num_predict: 10
-			}
-		});
-		// Get the completion from the response
-		const completion = response.data.response;
-		// Check if the completion is not empty
-		if (completion) {
-			return completion;
-		} else {
-			// Show a warning message
-			vscode.window.showWarningMessage("Ollama could not generate a completion for this prompt");
-			console.log("Ollama could not generate a completion for this prompt");
-		}
-	} catch (err: any) {
-		// Show an error message
-		vscode.window.showErrorMessage(
-			"Ollama encountered an error: " + err.message
-		);
-		console.log("Ollama encountered an error: " + err.message);
-	}
-}
-
 // This method is called when your extension is deactivated
 function deactivate() { }
 
