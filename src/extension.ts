@@ -15,10 +15,10 @@ function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
 	apiEndpoint = VSConfig.get("apiEndpoint") || "http://localhost:11434/api/generate";
 	apiModel = VSConfig.get("model") || "openhermes2.5-mistral:7b-q4_K_M"; // The model I tested with
-	apiSystemMessage = VSConfig.get("system-message");
-	numPredict = VSConfig.get("max-tokens-predicted") || 500;
-	promptWindowSize = VSConfig.get("prompt-window-size") || 2000;
-	rawInput = VSConfig.get("raw-input");
+	apiSystemMessage = VSConfig.get("system message");
+	numPredict = VSConfig.get("max tokens predicted") || 500;
+	promptWindowSize = VSConfig.get("prompt window size") || 2000;
+	rawInput = VSConfig.get("raw input");
 
 	if (apiSystemMessage == "DEFAULT" || rawInput) apiSystemMessage = undefined;
 }
