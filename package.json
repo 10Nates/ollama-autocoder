@@ -2,7 +2,7 @@
 	"name": "ollama-autocoder",
 	"displayName": "Ollama Autocoder",
 	"description": "A simple to use Ollama autocompletion engine with options exposed and streaming functionality",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"icon": "icon.png",
 	"publisher": "10nates",
 	"license": "MIT",
@@ -66,11 +66,6 @@
 					"type": "integer",
 					"default": 2000,
 					"description": "The size of the prompt in characters. NOT tokens, so can be set about 1.5-2x the max tokens of the model (varies)."
-				},
-				"ollama-autocoder.ask-on-space": {
-					"type": "boolean",
-					"default": true,
-					"description": "Have the option `Autocomplete with Ollama` appear when you press space. **RELOAD REQUIRED**"
 				}
 			}
 		},

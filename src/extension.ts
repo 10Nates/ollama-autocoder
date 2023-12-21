@@ -10,7 +10,6 @@ let apiSystemMessage: string | undefined;
 let numPredict: number;
 let promptWindowSize: number;
 let rawInput: boolean | undefined;
-let askOnSpace: boolean | undefined;
 
 function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
@@ -20,7 +19,6 @@ function updateVSConfig() {
 	numPredict = VSConfig.get("max-tokens-predicted") || 500;
 	promptWindowSize = VSConfig.get("prompt-window-size") || 2000;
 	rawInput = VSConfig.get("raw-input");
-	askOnSpace = VSConfig.get("ask-on-space"); // not actually changeable, requires reload
 
 	if (apiSystemMessage == "DEFAULT" || rawInput) apiSystemMessage = undefined;
 }
@@ -153,7 +151,7 @@ function activate(context: vscode.ExtensionContext) {
 		" "
 	);
 
-	// Register a command for getting a completion from Ollama
+	// Register command passthrough for completionProvider
 	const internalAutocompleteCommand = vscode.commands.registerCommand(
 		"ollama-autocoder.autocomplete-internal",
 		autocompleteCommand
@@ -168,9 +166,8 @@ function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	// Add the commands to the context
-	// Add the completion provider to the context
-	if (askOnSpace) context.subscriptions.push(completionProvider);
+	// Add the commands & completion provider to the context
+	context.subscriptions.push(completionProvider);
 	context.subscriptions.push(internalAutocompleteCommand);
 	context.subscriptions.push(externalAutocompleteCommand);
 
