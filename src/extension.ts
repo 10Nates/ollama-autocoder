@@ -9,18 +9,18 @@ let apiModel: string;
 let apiSystemMessage: string | undefined;
 let numPredict: number;
 let promptWindowSize: number;
-let rawInput: boolean;
-let cursorFollows: boolean | undefined;
+let rawInput: boolean | undefined;
+let askOnSpace: boolean | undefined;
 
 function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
 	apiEndpoint = VSConfig.get("apiEndpoint") || "http://localhost:11434/api/generate";
-	apiModel = VSConfig.get("model") || "openhermes2.5-mistral:7b-q4_K_M";
+	apiModel = VSConfig.get("model") || "openhermes2.5-mistral:7b-q4_K_M"; // The model I tested with
 	apiSystemMessage = VSConfig.get("system-message");
 	numPredict = VSConfig.get("max-tokens-predicted") || 500;
 	promptWindowSize = VSConfig.get("prompt-window-size") || 2000;
-	rawInput = VSConfig.get("raw-input") || false;
-	cursorFollows = VSConfig.get("cursor-follows");
+	rawInput = VSConfig.get("raw-input");
+	askOnSpace = VSConfig.get("ask-on-space"); // not actually changeable, requires reload
 
 	if (apiSystemMessage == "DEFAULT" || rawInput) apiSystemMessage = undefined;
 }
@@ -30,8 +30,12 @@ updateVSConfig();
 // No need for restart for any of these settings
 vscode.workspace.onDidChangeConfiguration(updateVSConfig);
 
-// Function called on ollama-autocoder.autocomplete
-async function autocompleteCommand(document: vscode.TextDocument, position: vscode.Position, prompt: string, cancellationToken: vscode.CancellationToken) {
+// internal function for autocomplete, not directly exposed
+async function autocompleteCommand(document: vscode.TextDocument, position: vscode.Position, cancellationToken?: vscode.CancellationToken) {
+	// Get the current prompt
+	let prompt = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
+	prompt = prompt.substring(Math.max(0, prompt.length - promptWindowSize), prompt.length);
+
 	// Show a progress message
 	vscode.window.withProgress(
 		{
@@ -58,7 +62,7 @@ async function autocompleteCommand(document: vscode.TextDocument, position: vsco
 						const cancelPost = function () {
 							c("Autocompletion request terminated");
 						};
-						cancellationToken.onCancellationRequested(cancelPost);
+						if (cancellationToken) cancellationToken.onCancellationRequested(cancelPost);
 						progressCancellationToken.onCancellationRequested(cancelPost);
 						vscode.workspace.onDidCloseTextDocument(cancelPost);
 					}),
@@ -100,10 +104,8 @@ async function autocompleteCommand(document: vscode.TextDocument, position: vsco
 					progress.report({ message: "Generating...", increment: 1 / (numPredict / 100) });
 
 					// move cursor
-					if (cursorFollows) {
-						const editor = vscode.window.activeTextEditor;
-						if (editor) editor.selection = newSelection;
-					}
+					const editor = vscode.window.activeTextEditor;
+					if (editor) editor.selection = newSelection;
 				});
 
 				// Keep cancel window available
@@ -130,44 +132,48 @@ async function autocompleteCommand(document: vscode.TextDocument, position: vsco
 // This method is called when extension is activated
 function activate(context: vscode.ExtensionContext) {
 	// Register a completion provider for JavaScript files
-	const provider = vscode.languages.registerCompletionItemProvider("*", {
+	const completionProvider = vscode.languages.registerCompletionItemProvider("*", {
 		async provideCompletionItems(document, position, cancellationToken) {
-			// Get the current prompt
-			let prompt = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
-			prompt = prompt.substring(Math.max(0, prompt.length - promptWindowSize), prompt.length);
-			// Check if the prompt is not empty and ends with a dot
-			if (prompt) {
-				// Create a completion item
-				const item = new vscode.CompletionItem("Autocomplete with Ollama");
-				// Set the insert text to a placeholder
-				item.insertText = new vscode.SnippetString('${1:}');
-				// Set the documentation to a message
-				item.documentation = new vscode.MarkdownString('Press `Enter` to get a completion from Ollama');
-				// Set the command to trigger the completion
-				item.command = {
-					command: 'ollama-autocoder.autocomplete',
-					title: 'Ollama',
-					arguments: [document, position, prompt, cancellationToken]
-				};
-				// Return the completion item
-				return [item];
-			}
+			// Create a completion item
+			const item = new vscode.CompletionItem("Autocomplete with Ollama");
+			// Set the insert text to a placeholder
+			item.insertText = new vscode.SnippetString('${1:}');
+			// Set the documentation to a message
+			item.documentation = new vscode.MarkdownString('Press `Enter` to get a completion from Ollama');
+			// Set the command to trigger the completion
+			item.command = {
+				command: 'ollama-autocoder.autocomplete-internal',
+				title: 'Ollama',
+				arguments: [document, position, cancellationToken]
+			};
+			// Return the completion item
+			return [item];
 		},
 	},
-		"\n", " "
+		" "
 	);
 
-	// Add the completion provider to the context
-	context.subscriptions.push(provider);
-
 	// Register a command for getting a completion from Ollama
-	const disposable = vscode.commands.registerCommand(
-		"ollama-autocoder.autocomplete",
+	const internalAutocompleteCommand = vscode.commands.registerCommand(
+		"ollama-autocoder.autocomplete-internal",
 		autocompleteCommand
 	);
 
-	// Add the command to the context
-	context.subscriptions.push(disposable);
+	// Register a command for getting a completion from Ollama through command/keybind
+	const externalAutocompleteCommand = vscode.commands.registerTextEditorCommand(
+		"ollama-autocoder.autocomplete",
+		(textEditor) => {
+			// no cancellation token from here
+			autocompleteCommand(textEditor.document, textEditor.selection.active);
+		}
+	);
+
+	// Add the commands to the context
+	// Add the completion provider to the context
+	if (askOnSpace) context.subscriptions.push(completionProvider);
+	context.subscriptions.push(internalAutocompleteCommand);
+	context.subscriptions.push(externalAutocompleteCommand);
+
 }
 
 // This method is called when extension is deactivated

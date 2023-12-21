@@ -67,13 +67,19 @@
 					"default": 2000,
 					"description": "The size of the prompt in characters. NOT tokens, so can be set about 1.5-2x the max tokens of the model (varies)."
 				},
-				"ollama-autocoder.cursor-follows": {
+				"ollama-autocoder.ask-on-space": {
 					"type": "boolean",
 					"default": true,
-					"description": "The user's cursor will follow along with the generation. Disabling this can cause unintended effects when typing above/in front of the generation point, but could boost user productivity."
+					"description": "Have the option `Autocomplete with Ollama` appear when you press space. **RELOAD REQUIRED**"
 				}
 			}
-		}
+		},
+		"commands": [
+			{
+			  "command": "ollama-autocoder.autocomplete",
+			  "title": "Autocomplete with Ollama"
+			}
+		  ]
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
