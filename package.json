@@ -1,7 +1,7 @@
 {
 	"name": "ollama-autocoder",
 	"displayName": "Ollama Autocoder",
-	"description": "An Ollama autocompletion engine with options exposed",
+	"description": "A simple to use Ollama autocompletion engine with options exposed and streaming functionality",
 	"version": "0.0.1",
 	"icon": "icon.png",
 	"publisher": "10nates",

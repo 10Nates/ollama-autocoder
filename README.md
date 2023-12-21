@@ -1,6 +1,6 @@
 # Ollama Autocoder
 
-A simple to use Ollama autocompletion engine with options exposed.
+A simple to use Ollama autocompletion engine with options exposed and streaming functionality
 
 ## Requirements
 
