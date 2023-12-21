@@ -7,7 +7,6 @@ A simple to use Ollama autocompletion engine with options exposed and streaming 
 - Ollama must be serving on the API endpoint applied in settings
   - For installation of Ollama, visit [ollama.ai](https://ollama.ai)
 - Ollama must have the model applied in settings installed.
-- For fastest results, an Nvidia GPU or Apple Silicon is recommended. CPU still works on small models.
 
 ## How to Use
 
@@ -15,3 +14,9 @@ A simple to use Ollama autocompletion engine with options exposed and streaming 
 2. After startup, the tokens will be streamed to your cursor.
 3. To stop the generation early, press the "Cancel" button on the "Ollama Autocoder" notification
 4. Once generation stops, the notification will disappear.
+
+## Notes
+
+- For fastest results, an Nvidia GPU or Apple Silicon is recommended. CPU still works on small models.
+- The prompt only sees behind the cursor. The model is unaware of text in front of its position.
+  

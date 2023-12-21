@@ -1,8 +1,8 @@
 {
 	"name": "ollama-autocoder",
-	"displayName": "Ollama Autocoder",
+	"displayName": "Ollama Autocode",
 	"description": "A simple to use Ollama autocompletion engine with options exposed and streaming functionality",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"icon": "icon.png",
 	"publisher": "10nates",
 	"license": "MIT",
@@ -50,7 +50,7 @@
 				"ollama-autocoder.raw-input": {
 					"type": "boolean",
 					"default": false,
-					"description": "Prompt the model without formatting. Disables system message."
+					"description": "Prompt the model without formatting. Disables system message. Turn this on if you are having trouble with a model falling out of coding mode."
 				},
 				"ollama-autocoder.system-message": {
 					"type": "string",
@@ -66,6 +66,11 @@
 					"type": "integer",
 					"default": 2000,
 					"description": "The size of the prompt in characters. NOT tokens, so can be set about 1.5-2x the max tokens of the model (varies)."
+				},
+				"ollama-autocoder.cursor-follows": {
+					"type": "boolean",
+					"default": true,
+					"description": "The user's cursor will follow along with the generation. Disabling this can cause unintended effects when typing above/in front of the generation point, but could boost user productivity."
 				}
 			}
 		}

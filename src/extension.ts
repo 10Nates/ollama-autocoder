@@ -10,6 +10,7 @@ let apiSystemMessage: string | undefined;
 let numPredict: number;
 let promptWindowSize: number;
 let rawInput: boolean;
+let cursorFollows: boolean | undefined;
 
 function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
@@ -19,6 +20,7 @@ function updateVSConfig() {
 	numPredict = VSConfig.get("max-tokens-predicted") || 500;
 	promptWindowSize = VSConfig.get("prompt-window-size") || 2000;
 	rawInput = VSConfig.get("raw-input") || false;
+	cursorFollows = VSConfig.get("cursor-follows");
 
 	if (apiSystemMessage == "DEFAULT" || rawInput) apiSystemMessage = undefined;
 }
@@ -75,20 +77,18 @@ async function autocompleteCommand(document: vscode.TextDocument, position: vsco
 
 					//complete edit for token
 					const edit = new vscode.WorkspaceEdit();
-					const range = new vscode.Range(
-						currentPosition.line,
-						currentPosition.character,
+					const range = new vscode.Position(
 						currentPosition.line,
 						currentPosition.character
 					);
-					edit.replace(document.uri, range, completion);
+					edit.insert(document.uri, range, completion);
 					await vscode.workspace.applyEdit(edit);
 
 					// Move the cursor to the end of the completion
 					const completionLines = completion.split("\n");
-					const newPosition = position.with(
-						currentPosition.line + completionLines.length,
-						(completionLines.length > 0 ? 0 : currentPosition.character) + completionLines[completionLines.length - 1].length
+					const newPosition = new vscode.Position(
+						currentPosition.line + completionLines.length - 1,
+						(completionLines.length > 1 ? 0 : currentPosition.character) + completionLines[completionLines.length - 1].length
 					);
 					const newSelection = new vscode.Selection(
 						newPosition,
@@ -97,11 +97,13 @@ async function autocompleteCommand(document: vscode.TextDocument, position: vsco
 					currentPosition = newPosition;
 
 					// completion bar
-					progress.report({ message: "Generating...", increment: 1 / (numPredict/100) });
+					progress.report({ message: "Generating...", increment: 1 / (numPredict / 100) });
 
 					// move cursor
-					const editor = vscode.window.activeTextEditor;
-					if (editor) editor.selection = newSelection;
+					if (cursorFollows) {
+						const editor = vscode.window.activeTextEditor;
+						if (editor) editor.selection = newSelection;
+					}
 				});
 
 				// Keep cancel window available
