@@ -6,6 +6,12 @@
 	"icon": "icon.png",
 	"publisher": "10nates",
 	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/10Nates/ollama-autocoder/issues"
+	},
+	"sponsor": {
+		"url": "https://ko-fi.com/natehedge"
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/10Nates/ollama-autocoder"
