@@ -35,6 +35,9 @@
 		"ai",
 		"llm"
 	],
+	"galleryBanner": {
+		"color": "#f5ead1"
+	},
 	"activationEvents": [
 		"onStartupFinished"
 	],
