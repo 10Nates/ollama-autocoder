@@ -2,6 +2,8 @@
 
 A simple to use Ollama autocompletion engine with options exposed and streaming functionality
 
+![example](example.gif)
+
 ## Requirements
 
 - Ollama must be serving on the API endpoint applied in settings
