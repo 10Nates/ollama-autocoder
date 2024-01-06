@@ -10,6 +10,7 @@ let apiSystemMessage: string | undefined;
 let numPredict: number;
 let promptWindowSize: number;
 let rawInput: boolean | undefined;
+let completionKeys: string;
 
 function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
@@ -19,6 +20,7 @@ function updateVSConfig() {
 	numPredict = VSConfig.get("max tokens predicted") || 500;
 	promptWindowSize = VSConfig.get("prompt window size") || 2000;
 	rawInput = VSConfig.get("raw input");
+	completionKeys = VSConfig.get("completion keys") || " ";
 
 	if (apiSystemMessage == "DEFAULT" || rawInput) apiSystemMessage = undefined;
 }
@@ -172,7 +174,7 @@ function activate(context: vscode.ExtensionContext) {
 			return [item];
 		},
 	},
-		" "
+		...completionKeys.split("")
 	);
 
 	// Register a command for getting a completion from Ollama through command/keybind

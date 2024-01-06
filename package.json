@@ -2,7 +2,7 @@
 	"name": "ollama-autocoder",
 	"displayName": "Ollama Autocoder",
 	"description": "A simple to use Ollama autocompletion engine with options exposed and streaming functionality",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"icon": "icon.png",
 	"publisher": "10nates",
 	"license": "MIT",
@@ -75,6 +75,11 @@
 					"type": "integer",
 					"default": 2000,
 					"description": "The size of the prompt in characters. NOT tokens, so can be set about 1.5-2x the max tokens of the model (varies)."
+				},
+				"ollama-autocoder.completion keys": {
+					"type": "string",
+					"default": " ",
+					"description": "Character that the autocompletion item provider appear on. Multiple characters will be treated as different entries. REQUIRES RELOAD"
 				}
 			}
 		},
