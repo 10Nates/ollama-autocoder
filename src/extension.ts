@@ -1,4 +1,4 @@
-// Significant help from GPT4
+// Original script was GPT4 but it has been deeply Ship of Theseused. 
 
 import * as vscode from "vscode";
 import axios from "axios";
@@ -11,6 +11,7 @@ let numPredict: number;
 let promptWindowSize: number;
 let rawInput: boolean | undefined;
 let completionKeys: string;
+let responsePreview: boolean | undefined;
 
 function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
@@ -21,6 +22,7 @@ function updateVSConfig() {
 	promptWindowSize = VSConfig.get("prompt window size") || 2000;
 	rawInput = VSConfig.get("raw input");
 	completionKeys = VSConfig.get("completion keys") || " ";
+	responsePreview = VSConfig.get("response preview");
 
 	if (apiSystemMessage == "DEFAULT" || rawInput) apiSystemMessage = undefined;
 }
@@ -157,13 +159,45 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 function activate(context: vscode.ExtensionContext) {
 	// Register a completion provider for JavaScript files
 	const completionProvider = vscode.languages.registerCompletionItemProvider("*", {
-		async provideCompletionItems(_, __, cancellationToken) {
+		async provideCompletionItems(document, position, cancellationToken) {
+
 			// Create a completion item
 			const item = new vscode.CompletionItem("Autocomplete with Ollama");
+
 			// Set the insert text to a placeholder
 			item.insertText = new vscode.SnippetString('${1:}');
+
+			// Set the label & inset text to a shortened, non-stream response
+			if (responsePreview) {
+				let prompt = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
+				prompt = prompt.substring(Math.max(0, prompt.length - promptWindowSize), prompt.length);
+				const response_preview = await axios.post(apiEndpoint, {
+					model: apiModel, // Change this to the model you want to use
+					prompt: prompt,
+					stream: false,
+					system: apiSystemMessage,
+					raw: true,
+					options: {
+						num_predict: 10, // reduced compute max. Yes, I know it's a constant. Maybe an option in the future but might confuse people.
+						stop: ['\n']
+					}
+				}, {
+					cancelToken: new axios.CancelToken((c) => {
+						const cancelPost = function () {
+							c("Autocompletion request terminated by completion cancel");
+						};
+						cancellationToken.onCancellationRequested(cancelPost);
+					})
+				});
+
+				if (response_preview.data.response.trim() != "") { // default if empty
+					item.label = response_preview.data.response.trimStart(); // tended to add whitespace at the beginning
+					item.insertText = response_preview.data.response.trimStart();
+				}
+			}
+
 			// Set the documentation to a message
-			item.documentation = new vscode.MarkdownString('Press `Enter` to get a completion from Ollama');
+			item.documentation = new vscode.MarkdownString('Press `Enter` to get an autocompletion from Ollama');
 			// Set the command to trigger the completion
 			item.command = {
 				command: 'ollama-autocoder.autocomplete',

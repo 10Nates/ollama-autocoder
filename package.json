@@ -80,6 +80,11 @@
 					"type": "string",
 					"default": " ",
 					"description": "Character that the autocompletion item provider appear on. Multiple characters will be treated as different entries. REQUIRES RELOAD"
+				},
+				"ollama-autocoder.response preview": {
+					"type": "boolean",
+					"default": true,
+					"description": "Inline completion label will be the first line of response. Max is 10 tokens, but this is unlikely to be reached. If the first line is empty, the default label will be used. Not streamable, disable on slow devices."
 				}
 			}
 		},
