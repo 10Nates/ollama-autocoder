@@ -12,6 +12,7 @@ let promptWindowSize: number;
 let rawInput: boolean | undefined;
 let completionKeys: string;
 let responsePreview: boolean | undefined;
+let responsePreviewMaxTokens: number;
 
 function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
@@ -23,6 +24,7 @@ function updateVSConfig() {
 	rawInput = VSConfig.get("raw input");
 	completionKeys = VSConfig.get("completion keys") || " ";
 	responsePreview = VSConfig.get("response preview");
+	responsePreviewMaxTokens = VSConfig.get("preview max tokens") || 10;
 
 	if (apiSystemMessage == "DEFAULT" || rawInput) apiSystemMessage = undefined;
 }
@@ -176,9 +178,9 @@ function activate(context: vscode.ExtensionContext) {
 					prompt: prompt,
 					stream: false,
 					system: apiSystemMessage,
-					raw: true,
+					raw: rawInput,
 					options: {
-						num_predict: 10, // reduced compute max. Yes, I know it's a constant. Maybe an option in the future but might confuse people.
+						num_predict: responsePreviewMaxTokens, // reduced compute max
 						stop: ['\n']
 					}
 				}, {
