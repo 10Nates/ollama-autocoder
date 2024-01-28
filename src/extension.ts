@@ -38,6 +38,18 @@ updateVSConfig();
 // No need for restart for any of these settings
 vscode.workspace.onDidChangeConfiguration(updateVSConfig);
 
+// internal function to handle undo functionality
+async function handleUndo(document: vscode.TextDocument, startingPosition: vscode.Position, endingPosition: vscode.Position, optons?: vscode.MessageOptions) {
+	vscode.window.showInformationMessage("Ollama autocompletion was cancelled. Would you like it to undo its changes?", "Keep", "Undo").then(r => {
+		if (r === "Undo") {	
+			const edit = new vscode.WorkspaceEdit();
+			const range = new vscode.Range(startingPosition, endingPosition);
+			edit.delete(document.uri, range);
+			vscode.workspace.applyEdit(edit);
+		}
+	});
+}
+
 // internal function for autocomplete, not directly exposed
 async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationToken?: vscode.CancellationToken) {
 	const document = textEditor.document;
@@ -58,10 +70,16 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 			try {
 				progress.report({ message: "Starting model..." });
 
+				//tracker
+				// let oldPosition = position;
+				let currentPosition = position;
+				// let lastToken = "";
+
 				let axiosCancelPost: () => void;
 				const axiosCancelToken = new axios.CancelToken((c) => {
 					const cancelPost = function () {
 						c("Autocompletion request terminated by user cancel");
+						handleUndo(document, position, currentPosition);
 					};
 					axiosCancelPost = cancelPost;
 					if (cancellationToken) cancellationToken.onCancellationRequested(cancelPost);
@@ -85,27 +103,31 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 				}
 				);
 
-				//tracker
-				let oldPosition = position;
-				let currentPosition = position;
-				let lastToken = "";
-
-
 				response.data.on('data', async (d: Uint8Array) => {
 					progress.report({ message: "Generating..." });
 
 					// Check for user input (cancel)
-					if (lastToken != "") {
-						const lastInput = document.getText(new vscode.Range(oldPosition, textEditor.selection.active));
-						if (lastInput !== lastToken) {
-							axiosCancelPost(); // cancel axios => cancel finished promise => close notification
-							return;
-						}
+					if (currentPosition != textEditor.selection.start) {
+						console.log(currentPosition, textEditor.selection.start);
+						axiosCancelPost(); // cancel axios => cancel finished promise => close notification
+						return;
 					}
+					// if (lastToken != "") {
+					// 	const lastInput = document.getText(new vscode.Range(oldPosition, textEditor.selection.active));
+					// 	if (lastInput !== lastToken) {
+					// 		console.log(lastInput, lastToken);
+					// 		axiosCancelPost(); // cancel axios => cancel finished promise => close notification
+					// 		return;
+					// 	}
+					// }
 
 					// Get a completion from the response
 					const completion: string = JSON.parse(d.toString()).response;
-					lastToken = completion;
+					// lastToken = completion;
+					
+					if (completion === "") {
+						return;
+					}
 
 					//complete edit for token
 					const edit = new vscode.WorkspaceEdit();
@@ -126,7 +148,7 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 						newPosition,
 						newPosition
 					);
-					oldPosition = currentPosition;
+					// oldPosition = currentPosition;
 					currentPosition = newPosition;
 
 					// completion bar
@@ -161,64 +183,67 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 	);
 }
 
+// Completion item provider callback for activate
+async function provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, cancellationToken: vscode.CancellationToken) {
+
+	// Create a completion item
+	const item = new vscode.CompletionItem("Autocomplete with Ollama");
+
+	// Set the insert text to a placeholder
+	item.insertText = new vscode.SnippetString('${1:}');
+
+	// Wait before initializing Ollama to reduce compute usage
+	if (responsePreview) await new Promise(resolve => setTimeout(resolve, responsePreviewDelay * 1000));
+	if (cancellationToken.isCancellationRequested) {
+		return [ item ];
+	}
+
+	// Set the label & inset text to a shortened, non-stream response
+	if (responsePreview) {
+		let prompt = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
+		prompt = prompt.substring(Math.max(0, prompt.length - promptWindowSize), prompt.length);
+		const response_preview = await axios.post(apiEndpoint, {
+			model: apiModel, // Change this to the model you want to use
+			prompt: prompt,
+			stream: false,
+			system: apiSystemMessage,
+			raw: rawInput,
+			options: {
+				num_predict: responsePreviewMaxTokens, // reduced compute max
+				stop: ['\n']
+			}
+		}, {
+			cancelToken: new axios.CancelToken((c) => {
+				const cancelPost = function () {
+					c("Autocompletion request terminated by completion cancel");
+				};
+				cancellationToken.onCancellationRequested(cancelPost);
+			})
+		});
+
+		if (response_preview.data.response.trim() != "") { // default if empty
+			item.label = response_preview.data.response.trimStart(); // tended to add whitespace at the beginning
+			item.insertText = response_preview.data.response.trimStart();
+		}
+	}
+
+	// Set the documentation to a message
+	item.documentation = new vscode.MarkdownString('Press `Enter` to get an autocompletion from Ollama');
+	// Set the command to trigger the completion
+	if (continueInline || !responsePreview) item.command = {
+		command: 'ollama-autocoder.autocomplete',
+		title: 'Autocomplete with Ollama',
+		arguments: [cancellationToken]
+	};
+	// Return the completion item
+	return [item];
+}
+
 // This method is called when extension is activated
 function activate(context: vscode.ExtensionContext) {
 	// Register a completion provider for JavaScript files
 	const completionProvider = vscode.languages.registerCompletionItemProvider("*", {
-		async provideCompletionItems(document, position, cancellationToken) {
-
-			// Create a completion item
-			const item = new vscode.CompletionItem("Autocomplete with Ollama");
-
-			// Set the insert text to a placeholder
-			item.insertText = new vscode.SnippetString('${1:}');
-
-			// Wait before initializing Ollama to reduce compute usage
-			if (responsePreview) await new Promise(resolve => setTimeout(resolve, responsePreviewDelay * 1000));
-			if (cancellationToken.isCancellationRequested) {
-				return [ item ];
-			}
-
-			// Set the label & inset text to a shortened, non-stream response
-			if (responsePreview) {
-				let prompt = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
-				prompt = prompt.substring(Math.max(0, prompt.length - promptWindowSize), prompt.length);
-				const response_preview = await axios.post(apiEndpoint, {
-					model: apiModel, // Change this to the model you want to use
-					prompt: prompt,
-					stream: false,
-					system: apiSystemMessage,
-					raw: rawInput,
-					options: {
-						num_predict: responsePreviewMaxTokens, // reduced compute max
-						stop: ['\n']
-					}
-				}, {
-					cancelToken: new axios.CancelToken((c) => {
-						const cancelPost = function () {
-							c("Autocompletion request terminated by completion cancel");
-						};
-						cancellationToken.onCancellationRequested(cancelPost);
-					})
-				});
-
-				if (response_preview.data.response.trim() != "") { // default if empty
-					item.label = response_preview.data.response.trimStart(); // tended to add whitespace at the beginning
-					item.insertText = response_preview.data.response.trimStart();
-				}
-			}
-
-			// Set the documentation to a message
-			item.documentation = new vscode.MarkdownString('Press `Enter` to get an autocompletion from Ollama');
-			// Set the command to trigger the completion
-			if (continueInline || !responsePreview) item.command = {
-				command: 'ollama-autocoder.autocomplete',
-				title: 'Autocomplete with Ollama',
-				arguments: [cancellationToken]
-			};
-			// Return the completion item
-			return [item];
-		},
+		provideCompletionItems
 	},
 		...completionKeys.split("")
 	);

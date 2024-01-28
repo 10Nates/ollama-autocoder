@@ -2,7 +2,7 @@
 	"name": "ollama-autocoder",
 	"displayName": "Ollama Autocoder",
 	"description": "A simple to use Ollama autocompletion engine with options exposed and streaming functionality",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"icon": "icon.png",
 	"publisher": "10nates",
 	"license": "MIT",
