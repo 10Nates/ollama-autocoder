@@ -38,18 +38,6 @@ updateVSConfig();
 // No need for restart for any of these settings
 vscode.workspace.onDidChangeConfiguration(updateVSConfig);
 
-// internal function to handle undo functionality
-async function handleUndo(document: vscode.TextDocument, startingPosition: vscode.Position, endingPosition: vscode.Position, optons?: vscode.MessageOptions) {
-	vscode.window.showInformationMessage("Ollama autocompletion was cancelled. Would you like it to undo its changes?", "Keep", "Undo").then(r => {
-		if (r === "Undo") {	
-			const edit = new vscode.WorkspaceEdit();
-			const range = new vscode.Range(startingPosition, endingPosition);
-			edit.delete(document.uri, range);
-			vscode.workspace.applyEdit(edit);
-		}
-	});
-}
-
 // internal function for autocomplete, not directly exposed
 async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationToken?: vscode.CancellationToken) {
 	const document = textEditor.document;
@@ -70,16 +58,10 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 			try {
 				progress.report({ message: "Starting model..." });
 
-				//tracker
-				// let oldPosition = position;
-				let currentPosition = position;
-				// let lastToken = "";
-
 				let axiosCancelPost: () => void;
 				const axiosCancelToken = new axios.CancelToken((c) => {
 					const cancelPost = function () {
 						c("Autocompletion request terminated by user cancel");
-						handleUndo(document, position, currentPosition);
 					};
 					axiosCancelPost = cancelPost;
 					if (cancellationToken) cancellationToken.onCancellationRequested(cancelPost);
@@ -103,23 +85,17 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 				}
 				);
 
+				//tracker
+				let currentPosition = position;
+
 				response.data.on('data', async (d: Uint8Array) => {
 					progress.report({ message: "Generating..." });
 
 					// Check for user input (cancel)
-					if (currentPosition != textEditor.selection.start) {
-						console.log(currentPosition, textEditor.selection.start);
+					if (currentPosition.line != textEditor.selection.end.line || currentPosition.character != textEditor.selection.end.character) {
 						axiosCancelPost(); // cancel axios => cancel finished promise => close notification
 						return;
 					}
-					// if (lastToken != "") {
-					// 	const lastInput = document.getText(new vscode.Range(oldPosition, textEditor.selection.active));
-					// 	if (lastInput !== lastToken) {
-					// 		console.log(lastInput, lastToken);
-					// 		axiosCancelPost(); // cancel axios => cancel finished promise => close notification
-					// 		return;
-					// 	}
-					// }
 
 					// Get a completion from the response
 					const completion: string = JSON.parse(d.toString()).response;
@@ -131,11 +107,7 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 
 					//complete edit for token
 					const edit = new vscode.WorkspaceEdit();
-					const range = new vscode.Position(
-						currentPosition.line,
-						currentPosition.character
-					);
-					edit.insert(document.uri, range, completion);
+					edit.insert(document.uri, currentPosition, completion);
 					await vscode.workspace.applyEdit(edit);
 
 					// Move the cursor to the end of the completion
@@ -145,18 +117,16 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 						(completionLines.length > 1 ? 0 : currentPosition.character) + completionLines[completionLines.length - 1].length
 					);
 					const newSelection = new vscode.Selection(
-						newPosition,
+						position,
 						newPosition
 					);
-					// oldPosition = currentPosition;
 					currentPosition = newPosition;
 
 					// completion bar
 					progress.report({ message: "Generating...", increment: 1 / (numPredict / 100) });
 
 					// move cursor
-					const editor = vscode.window.activeTextEditor;
-					if (editor) editor.selection = newSelection;
+					textEditor.selection = newSelection;
 				});
 
 				// Keep cancel window available
