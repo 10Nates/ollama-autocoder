@@ -13,6 +13,8 @@ let rawInput: boolean | undefined;
 let completionKeys: string;
 let responsePreview: boolean | undefined;
 let responsePreviewMaxTokens: number;
+let responsePreviewDelay: number;
+let continueInline: boolean | undefined;
 
 function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
@@ -25,6 +27,8 @@ function updateVSConfig() {
 	completionKeys = VSConfig.get("completion keys") || " ";
 	responsePreview = VSConfig.get("response preview");
 	responsePreviewMaxTokens = VSConfig.get("preview max tokens") || 10;
+	responsePreviewDelay = VSConfig.get("preview delay") || 0; // Must be || 0 instead of || [default] because of truthy
+	continueInline = VSConfig.get("continue inline");
 
 	if (apiSystemMessage == "DEFAULT" || rawInput) apiSystemMessage = undefined;
 }
@@ -169,6 +173,12 @@ function activate(context: vscode.ExtensionContext) {
 			// Set the insert text to a placeholder
 			item.insertText = new vscode.SnippetString('${1:}');
 
+			// Wait before initializing Ollama to reduce compute usage
+			if (responsePreview) await new Promise(resolve => setTimeout(resolve, responsePreviewDelay * 1000));
+			if (cancellationToken.isCancellationRequested) {
+				return [ item ];
+			}
+
 			// Set the label & inset text to a shortened, non-stream response
 			if (responsePreview) {
 				let prompt = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
@@ -201,7 +211,7 @@ function activate(context: vscode.ExtensionContext) {
 			// Set the documentation to a message
 			item.documentation = new vscode.MarkdownString('Press `Enter` to get an autocompletion from Ollama');
 			// Set the command to trigger the completion
-			item.command = {
+			if (continueInline || !responsePreview) item.command = {
 				command: 'ollama-autocoder.autocomplete',
 				title: 'Autocomplete with Ollama',
 				arguments: [cancellationToken]
