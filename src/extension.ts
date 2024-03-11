@@ -6,10 +6,10 @@ import axios from "axios";
 let VSConfig: vscode.WorkspaceConfiguration;
 let apiEndpoint: string;
 let apiModel: string;
-let apiSystemMessage: string | undefined;
+let apiMessageHeader: string;
+let apiTemperature: number;
 let numPredict: number;
 let promptWindowSize: number;
-let rawInput: boolean | undefined;
 let completionKeys: string;
 let responsePreview: boolean | undefined;
 let responsePreviewMaxTokens: number;
@@ -20,23 +20,30 @@ function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
 	apiEndpoint = VSConfig.get("endpoint") || "http://localhost:11434/api/generate";
 	apiModel = VSConfig.get("model") || "openhermes2.5-mistral:7b-q4_K_M"; // The model I tested with
-	apiSystemMessage = VSConfig.get("system message");
-	numPredict = VSConfig.get("max tokens predicted") || 500;
+	apiMessageHeader = VSConfig.get("message header") || "";
+	numPredict = VSConfig.get("max tokens predicted") || 1000;
 	promptWindowSize = VSConfig.get("prompt window size") || 2000;
-	rawInput = VSConfig.get("raw input");
 	completionKeys = VSConfig.get("completion keys") || " ";
 	responsePreview = VSConfig.get("response preview");
-	responsePreviewMaxTokens = VSConfig.get("preview max tokens") || 10;
+	responsePreviewMaxTokens = VSConfig.get("preview max tokens") || 50;
 	responsePreviewDelay = VSConfig.get("preview delay") || 0; // Must be || 0 instead of || [default] because of truthy
 	continueInline = VSConfig.get("continue inline");
-
-	if (apiSystemMessage == "DEFAULT" || rawInput) apiSystemMessage = undefined;
+	apiTemperature = VSConfig.get("temperature") || 0.5;
 }
 
 updateVSConfig();
 
 // No need for restart for any of these settings
 vscode.workspace.onDidChangeConfiguration(updateVSConfig);
+
+// Give model additional information
+function messageHeaderSub(document: vscode.TextDocument) {
+	const sub = apiMessageHeader
+		.replace("{LANG}", document.languageId)
+		.replace("{FILE_NAME}", document.fileName)
+		.replace("{PROJECT_NAME}", vscode.workspace.name || "(undefined)");
+	return sub;
+}
 
 // internal function for autocomplete, not directly exposed
 async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationToken?: vscode.CancellationToken) {
@@ -72,12 +79,13 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 				// Make a request to the ollama.ai REST API
 				const response = await axios.post(apiEndpoint, {
 					model: apiModel, // Change this to the model you want to use
-					prompt: prompt,
+					prompt: messageHeaderSub(textEditor.document) + prompt,
 					stream: true,
-					system: apiSystemMessage,
-					raw: rawInput,
+					raw: true,
 					options: {
-						num_predict: numPredict
+						num_predict: numPredict,
+						temperature: apiTemperature,
+						stop: ["```"]
 					}
 				}, {
 					cancelToken: axiosCancelToken,
@@ -174,13 +182,13 @@ async function provideCompletionItems(document: vscode.TextDocument, position: v
 		prompt = prompt.substring(Math.max(0, prompt.length - promptWindowSize), prompt.length);
 		const response_preview = await axios.post(apiEndpoint, {
 			model: apiModel, // Change this to the model you want to use
-			prompt: prompt,
+			prompt: messageHeaderSub(document) + prompt,
 			stream: false,
-			system: apiSystemMessage,
-			raw: rawInput,
+			raw: true,
 			options: {
 				num_predict: responsePreviewMaxTokens, // reduced compute max
-				stop: ['\n']
+				temperature: apiTemperature,
+				stop: ['\n', '```']
 			}
 		}, {
 			cancelToken: new axios.CancelToken((c) => {
