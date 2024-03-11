@@ -41,7 +41,7 @@ function messageHeaderSub(document: vscode.TextDocument) {
 	const sub = apiMessageHeader
 		.replace("{LANG}", document.languageId)
 		.replace("{FILE_NAME}", document.fileName)
-		.replace("{PROJECT_NAME}", vscode.workspace.name || "(undefined)");
+		.replace("{PROJECT_NAME}", vscode.workspace.name || "Untitled");
 	return sub;
 }
 
