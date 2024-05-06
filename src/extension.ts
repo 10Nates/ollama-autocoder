@@ -1,5 +1,3 @@
-// Original script was GPT4 but it has been deeply Ship of Theseused. 
-
 import * as vscode from "vscode";
 import axios from "axios";
 
@@ -15,6 +13,17 @@ let responsePreview: boolean | undefined;
 let responsePreviewMaxTokens: number;
 let responsePreviewDelay: number;
 let continueInline: boolean | undefined;
+let keepAlive: number | undefined;
+let topK: number | undefined;
+let topP: number | undefined;
+let tfsZ: number | undefined;
+let typicalP: number | undefined;
+let repeatLastN: number | undefined;
+let repeatPenalty: number | undefined;
+let presencePenalty: number | undefined;
+let frequencyPenalty: number | undefined;
+let numBatch: number | undefined;
+let numKeep: number | undefined;
 
 function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
@@ -29,6 +38,17 @@ function updateVSConfig() {
 	responsePreviewDelay = VSConfig.get("preview delay") || 0; // Must be || 0 instead of || [default] because of truthy
 	continueInline = VSConfig.get("continue inline");
 	apiTemperature = VSConfig.get("temperature") || 0.5;
+	keepAlive = VSConfig.get("keep alive") || undefined;
+	topK = VSConfig.get("top k") || undefined;
+	topP = VSConfig.get("top p") || undefined;
+	tfsZ = VSConfig.get("tfs z") || undefined;
+	typicalP = VSConfig.get("typical p") || undefined;
+	repeatLastN = VSConfig.get("repeat last n") || undefined;
+	repeatPenalty = VSConfig.get("repeat penalty") || undefined;
+	presencePenalty = VSConfig.get("presence penalty") || undefined;
+	frequencyPenalty = VSConfig.get("frequency penalty") || undefined;
+	numBatch = VSConfig.get("num batch") || undefined;
+	numKeep = VSConfig.get("num keep") || undefined;
 }
 
 updateVSConfig();
@@ -108,7 +128,7 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 					// Get a completion from the response
 					const completion: string = JSON.parse(d.toString()).response;
 					// lastToken = completion;
-					
+
 					if (completion === "") {
 						return;
 					}
@@ -188,7 +208,18 @@ async function provideCompletionItems(document: vscode.TextDocument, position: v
 			options: {
 				num_predict: responsePreviewMaxTokens, // reduced compute max
 				temperature: apiTemperature,
-				stop: ['\n', '```']
+				stop: ['\n', '```'],
+				...keepAlive && { keep_alive: keepAlive },
+				...topK && { top_k: topK },
+				...topP && { top_p: topP },
+				...tfsZ && { tfs_z: tfsZ },
+				...typicalP && { typical_p: typicalP },
+				...repeatLastN && { repeat_last_n: repeatLastN },
+				...repeatPenalty && { repeat_penalty: repeatPenalty },
+				...presencePenalty && { presence_penalty: presencePenalty },
+				...frequencyPenalty && { frequency_penalty: frequencyPenalty },
+				...numBatch && { num_batch: numBatch },
+				...numKeep && { num_keep: numKeep },
 			}
 		}, {
 			cancelToken: new axios.CancelToken((c) => {
@@ -242,6 +273,7 @@ function activate(context: vscode.ExtensionContext) {
 }
 
 // This method is called when extension is deactivated
+// eslint-disable-next-line @typescript-eslint/no-empty-function
 function deactivate() { }
 
 module.exports = {

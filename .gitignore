@@ -3,3 +3,4 @@
 /out
 package-lock.json
 *.vsix
+.vscode

@@ -2,7 +2,7 @@
 	"name": "ollama-autocoder",
 	"displayName": "Ollama Autocoder",
 	"description": "A simple to use Ollama autocompletion engine with options exposed and streaming functionality",
-	"version": "0.0.8",
+	"version": "0.0.9",
 	"icon": "icon.png",
 	"publisher": "10nates",
 	"license": "MIT",
@@ -17,7 +17,7 @@
 		"url": "https://github.com/10Nates/ollama-autocoder"
 	},
 	"engines": {
-		"vscode": "^1.73.0"
+		"vscode": "^1.89.0"
 	},
 	"categories": [
 		"Machine Learning",
@@ -96,12 +96,57 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Ollama continues autocompletion after what is previewed inline. Disabling disables that feature as some may find it irritating. Multiline completion is still accessible through the shortcut even after disabling."
-				
+
 				},
 				"ollama-autocoder.temperature": {
 					"type": "number",
 					"default": 0.5,
 					"description": "Temperature of the model. It is recommended to set it lower than you would for dialogue."
+				},
+				"ollama-autocoder.keep alive": {
+					"type": "number",
+					"default": 10,
+					"description": "Time in minutes before Ollama unloads the model."
+				},
+				"ollama-autocoder.top k": {
+					"type": "integer",
+					"description": "Top k sampling for the model."
+				},
+				"ollama-autocoder.top p": {
+					"type": "number",
+					"description": "Top p sampling for the model."
+				},
+				"ollama-autocoder.tfs z": {
+					"type": "number",
+					"description": "TFS z sampling for the model."
+				},
+				"ollama-autocoder.typical p": {
+					"type": "number",
+					"description": "Typical p sampling for the model."
+				},
+				"ollama-autocoder.repeat last n": {
+					"type": "number",
+					"description": "Repeat the last n tokens of the prompt. This can be useful for code completion as it allows the model to have more context."
+				},
+				"ollama-autocoder.repeat penalty": {
+					"type": "number",
+					"description": "Repetition penalty for the model."
+				},
+				"ollama-autocoder.presence penalty": {
+					"type": "number",
+					"description": "Presence penalty for the model."
+				},
+				"ollama-autocoder.frequency penalty": {
+					"type": "number",
+					"description": "Frequency penalty for the model."
+				},
+				"ollama-autocoder.num batch": {
+					"type": "number",
+					"description": "Batch size."
+				},
+				"ollama-autocoder.num keep": {
+					"type": "number",
+					"description": "Number of keep tokens for the model."
 				}
 			}
 		},
@@ -114,19 +159,20 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
-		"compile": "tsc -p ./",
+		"compile": "tsc --skipLibCheck -p ./",
+		"package": "npm run compile && vsce package",
 		"lint": "eslint \"src/**/*.ts\"",
-		"watch": "tsc -watch -p ./"
+		"watch": "tsc --skipLibCheck -watch -p ./"
 	},
 	"devDependencies": {
-		"@types/node": "^16.18.34",
-		"@types/vscode": "^1.73.0",
-		"@typescript-eslint/eslint-plugin": "^6.7.0",
-		"@typescript-eslint/parser": "^6.7.0",
-		"eslint": "^8.26.0",
-		"typescript": "^5.3.2"
+		"@types/node": "^20.12.8",
+		"@types/vscode": "^1.89.0",
+		"@typescript-eslint/eslint-plugin": "^7.8.0",
+		"@typescript-eslint/parser": "^7.8.0",
+		"eslint": "^8.57.0",
+		"typescript": "^5.4.5"
 	},
 	"dependencies": {
-		"axios": "^1.6.2"
+		"axios": "^1.6.8"
 	}
 }
