@@ -18,17 +18,17 @@ let continueInline: boolean | undefined;
 
 function updateVSConfig() {
 	VSConfig = vscode.workspace.getConfiguration("ollama-autocoder");
-	apiEndpoint = VSConfig.get("endpoint") || "http://localhost:11434/api/generate";
-	apiModel = VSConfig.get("model") || "openhermes2.5-mistral:7b-q4_K_M"; // The model I tested with
+	apiEndpoint = VSConfig.get("endpoint") || "";
+	apiModel = VSConfig.get("model") || "";
 	apiMessageHeader = VSConfig.get("message header") || "";
-	numPredict = VSConfig.get("max tokens predicted") || 1000;
-	promptWindowSize = VSConfig.get("prompt window size") || 2000;
+	numPredict = VSConfig.get("max tokens predicted") || 0;
+	promptWindowSize = VSConfig.get("prompt window size") || 0;
 	completionKeys = VSConfig.get("completion keys") || " ";
 	responsePreview = VSConfig.get("response preview");
-	responsePreviewMaxTokens = VSConfig.get("preview max tokens") || 50;
+	responsePreviewMaxTokens = VSConfig.get("preview max tokens") || 0;
 	responsePreviewDelay = VSConfig.get("preview delay") || 0; // Must be || 0 instead of || [default] because of truthy
 	continueInline = VSConfig.get("continue inline");
-	apiTemperature = VSConfig.get("temperature") || 0.5;
+	apiTemperature = VSConfig.get("temperature") || 0;
 }
 
 updateVSConfig();
@@ -75,17 +75,20 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 					progressCancellationToken.onCancellationRequested(cancelPost);
 					vscode.workspace.onDidCloseTextDocument(cancelPost);
 				});
-
+				
+				const completeInput = messageHeaderSub(textEditor.document) + prompt;
+				
 				// Make a request to the ollama.ai REST API
 				const response = await axios.post(apiEndpoint, {
 					model: apiModel, // Change this to the model you want to use
-					prompt: messageHeaderSub(textEditor.document) + prompt,
+					prompt: completeInput,
 					stream: true,
 					raw: true,
 					options: {
 						num_predict: numPredict,
 						temperature: apiTemperature,
-						stop: ["```"]
+						stop: ["```"],
+						num_ctx: Math.min(completeInput.length, 1_048_000) // Assumes absolute worst case of 1 char = 1 token
 					}
 				}, {
 					cancelToken: axiosCancelToken,
@@ -180,15 +183,18 @@ async function provideCompletionItems(document: vscode.TextDocument, position: v
 	if (responsePreview) {
 		let prompt = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
 		prompt = prompt.substring(Math.max(0, prompt.length - promptWindowSize), prompt.length);
+		const completeInput = messageHeaderSub(document) + prompt;
+
 		const response_preview = await axios.post(apiEndpoint, {
 			model: apiModel, // Change this to the model you want to use
-			prompt: messageHeaderSub(document) + prompt,
+			prompt: completeInput,
 			stream: false,
 			raw: true,
 			options: {
 				num_predict: responsePreviewMaxTokens, // reduced compute max
 				temperature: apiTemperature,
-				stop: ['\n', '```']
+				stop: ['\n', '```'],
+				num_ctx: Math.min(completeInput.length, 1_048_000) // Assumes absolute worst case of 1 char = 1 token
 			}
 		}, {
 			cancelToken: new axios.CancelToken((c) => {
