@@ -127,7 +127,6 @@
 	},
 	"dependencies": {
 		"axios": "^1.6.2",
-		"llama-tokenizer-js": "^1.2.1",
 		"npm": "^10.8.1"
 	}
 }
