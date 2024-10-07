@@ -45,12 +45,20 @@ function messageHeaderSub(document: vscode.TextDocument) {
 	return sub;
 }
 
-function handleError(err: any) {
+async function handleError(err: any) {
 	if (err.code === 'ERR_CANCELED') return;
 
+	let error_reason = err.code.toString();
+	if (err.code === 'ECONNREFUSED') error_reason = "ECONNREFUSED — Ollama is likely not running";
+	if (err.code === 'ERR_BAD_REQUEST') error_reason = "ERR_BAD_REQUEST — Settings are likely misconfigured"
+
+	let error_response = err.message;
+
 	// Show an error message
-	vscode.window.showErrorMessage("Ollama Autocoder encountered an error: " + err.toString() + (err.code ? " (" + err.code + ")" : ""));
-	console.log(err);
+	vscode.window.showErrorMessage(
+		"Ollama Autocoder encountered an error: " + error_reason + (error_response !== "" ? ": " : "") + 
+		error_response);
+	console.error(err);
 }
 
 // internal function for autocomplete, not directly exposed
@@ -162,7 +170,12 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 				await finished;
 
 			} catch (err: any) {
-				handleError(err);
+				if (err.response && err.response.data) err.response.data.on('data', async (d: Uint8Array) => {
+					const completion: string = JSON.parse(d.toString()).error;
+					err.message = completion;
+					handleError(err);
+				}).catch(handleError);
+				else handleError(err);
 			}
 		}
 	);
@@ -215,6 +228,7 @@ async function provideCompletionItems(document: vscode.TextDocument, position: v
 				item.insertText = response_preview.data.response.trimStart();
 			}
 		} catch (err: any) {
+			if (err.response && err.response.data) err.message = err.response.data.error;
 			handleError(err);
 		}
 	}
