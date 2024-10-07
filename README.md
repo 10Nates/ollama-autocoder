@@ -8,7 +8,8 @@ A simple to use Ollama autocompletion engine with options exposed and streaming 
 
 - Ollama must be serving on the API endpoint applied in settings
   - For installation of Ollama, visit [ollama.ai](https://ollama.ai)
-- Ollama must have the model applied in settings installed. The current default is `llama3-gradient:latest`.
+- Ollama must have the `model` applied in settings installed. The current default is `qwen2.5-coder:latest`.
+- The `prompt window size` should align with the maximum context window of the model.
 
 ## How to Use
 

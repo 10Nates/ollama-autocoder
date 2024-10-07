@@ -45,6 +45,14 @@ function messageHeaderSub(document: vscode.TextDocument) {
 	return sub;
 }
 
+function handleError(err: any) {
+	if (err.code === 'ERR_CANCELED') return;
+
+	// Show an error message
+	vscode.window.showErrorMessage("Ollama Autocoder encountered an error: " + err.toString() + (err.code ? " (" + err.code + ")" : ""));
+	console.log(err);
+}
+
 // internal function for autocomplete, not directly exposed
 async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationToken?: vscode.CancellationToken) {
 	const document = textEditor.document;
@@ -75,9 +83,9 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 					progressCancellationToken.onCancellationRequested(cancelPost);
 					vscode.workspace.onDidCloseTextDocument(cancelPost);
 				});
-				
+
 				const completeInput = messageHeaderSub(textEditor.document) + prompt;
-				
+
 				// Make a request to the ollama.ai REST API
 				const response = await axios.post(apiEndpoint, {
 					model: apiModel, // Change this to the model you want to use
@@ -88,7 +96,7 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 						num_predict: numPredict,
 						temperature: apiTemperature,
 						stop: ["```"],
-						num_ctx: Math.min(completeInput.length, 1_048_000) // Assumes absolute worst case of 1 char = 1 token
+						num_ctx: Math.min(completeInput.length, promptWindowSize) // Assumes absolute worst case of 1 char = 1 token
 					}
 				}, {
 					cancelToken: axiosCancelToken,
@@ -111,7 +119,7 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 					// Get a completion from the response
 					const completion: string = JSON.parse(d.toString()).response;
 					// lastToken = completion;
-					
+
 					if (completion === "") {
 						return;
 					}
@@ -154,11 +162,7 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 				await finished;
 
 			} catch (err: any) {
-				// Show an error message
-				vscode.window.showErrorMessage(
-					"Ollama encountered an error: " + err.message
-				);
-				console.log(err);
+				handleError(err);
 			}
 		}
 	);
@@ -176,38 +180,42 @@ async function provideCompletionItems(document: vscode.TextDocument, position: v
 	// Wait before initializing Ollama to reduce compute usage
 	if (responsePreview) await new Promise(resolve => setTimeout(resolve, responsePreviewDelay * 1000));
 	if (cancellationToken.isCancellationRequested) {
-		return [ item ];
+		return [item];
 	}
 
 	// Set the label & inset text to a shortened, non-stream response
 	if (responsePreview) {
-		let prompt = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
-		prompt = prompt.substring(Math.max(0, prompt.length - promptWindowSize), prompt.length);
-		const completeInput = messageHeaderSub(document) + prompt;
+		try {
+			let prompt = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
+			prompt = prompt.substring(Math.max(0, prompt.length - promptWindowSize), prompt.length);
+			const completeInput = messageHeaderSub(document) + prompt;
 
-		const response_preview = await axios.post(apiEndpoint, {
-			model: apiModel, // Change this to the model you want to use
-			prompt: completeInput,
-			stream: false,
-			raw: true,
-			options: {
-				num_predict: responsePreviewMaxTokens, // reduced compute max
-				temperature: apiTemperature,
-				stop: ['\n', '```'],
-				num_ctx: Math.min(completeInput.length, 1_048_000) // Assumes absolute worst case of 1 char = 1 token
+			const response_preview = await axios.post(apiEndpoint, {
+				model: apiModel, // Change this to the model you want to use
+				prompt: completeInput,
+				stream: false,
+				raw: true,
+				options: {
+					num_predict: responsePreviewMaxTokens, // reduced compute max
+					temperature: apiTemperature,
+					stop: ['\n', '```'],
+					num_ctx: Math.min(completeInput.length, promptWindowSize) // Assumes absolute worst case of 1 char = 1 token
+				}
+			}, {
+				cancelToken: new axios.CancelToken((c) => {
+					const cancelPost = function () {
+						c("Autocompletion request terminated by completion cancel");
+					};
+					cancellationToken.onCancellationRequested(cancelPost);
+				})
+			});
+
+			if (response_preview.data.response.trim() != "") { // default if empty
+				item.label = response_preview.data.response.trimStart(); // tended to add whitespace at the beginning
+				item.insertText = response_preview.data.response.trimStart();
 			}
-		}, {
-			cancelToken: new axios.CancelToken((c) => {
-				const cancelPost = function () {
-					c("Autocompletion request terminated by completion cancel");
-				};
-				cancellationToken.onCancellationRequested(cancelPost);
-			})
-		});
-
-		if (response_preview.data.response.trim() != "") { // default if empty
-			item.label = response_preview.data.response.trimStart(); // tended to add whitespace at the beginning
-			item.insertText = response_preview.data.response.trimStart();
+		} catch (err: any) {
+			handleError(err);
 		}
 	}
 
