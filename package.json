@@ -17,7 +17,7 @@
 		"url": "https://github.com/10Nates/ollama-autocoder"
 	},
 	"engines": {
-		"vscode": "^1.73.0"
+		"vscode": "^1.86.0"
 	},
 	"categories": [
 		"Machine Learning",
@@ -119,7 +119,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "^22.7.4",
-		"@types/vscode": "^1.94.0",
+		"@types/vscode": "^1.86.0",
 		"@typescript-eslint/eslint-plugin": "^8.8.0",
 		"@typescript-eslint/parser": "^8.8.0",
 		"typescript": "^5.6.2"
