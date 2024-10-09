@@ -48,7 +48,7 @@ function messageHeaderSub(document: vscode.TextDocument) {
 async function handleError(err: any) {
 	if (err.code === 'ERR_CANCELED') return;
 
-	let error_reason = err.code.toString();
+	let error_reason = err.code ? err.code.toString() : "";
 	if (err.code === 'ECONNREFUSED') error_reason = "ECONNREFUSED — Ollama is likely not running";
 	if (err.code === 'ERR_BAD_REQUEST') error_reason = "ERR_BAD_REQUEST — Settings are likely misconfigured"
 
@@ -56,7 +56,7 @@ async function handleError(err: any) {
 
 	// Show an error message
 	vscode.window.showErrorMessage(
-		"Ollama Autocoder encountered an error: " + error_reason + (error_response !== "" ? ": " : "") + 
+		"Ollama Autocoder encountered an error: " + error_reason + (error_response != "" ? ": " : "") + 
 		error_response);
 	console.error(err);
 }
@@ -264,8 +264,12 @@ function activate(context: vscode.ExtensionContext) {
 	);
 
 	// Add the commands & completion provider to the context
-	context.subscriptions.push(completionProvider);
-	context.subscriptions.push(externalAutocompleteCommand);
+	try {
+		context.subscriptions.push(completionProvider);
+		context.subscriptions.push(externalAutocompleteCommand);
+	} catch (err) {
+		handleError(err);
+	}
 
 }
 
