@@ -5,6 +5,7 @@ import axios from "axios";
 
 let VSConfig: vscode.WorkspaceConfiguration;
 let apiEndpoint: string;
+let apiBearerToken: string;
 let apiModel: string;
 let apiMessageHeader: string;
 let apiTemperature: number;
@@ -56,7 +57,7 @@ async function handleError(err: any) {
 
 	// Show an error message
 	vscode.window.showErrorMessage(
-		"Ollama Autocoder encountered an error: " + error_reason + (error_response != "" ? ": " : "") + 
+		"Ollama Autocoder encountered an error: " + error_reason + (error_response != "" ? ": " : "") +
 		error_response);
 	console.error(err);
 }
@@ -108,7 +109,10 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 					}
 				}, {
 					cancelToken: axiosCancelToken,
-					responseType: 'stream'
+					responseType: 'stream',
+					headers: {
+						Authorization: apiBearerToken !== "" ? "Bearer " + apiBearerToken : undefined
+					}
 				}
 				);
 
@@ -220,7 +224,10 @@ async function provideCompletionItems(document: vscode.TextDocument, position: v
 						c("Autocompletion request terminated by completion cancel");
 					};
 					cancellationToken.onCancellationRequested(cancelPost);
-				})
+				}),
+				headers: {
+					Authorization: apiBearerToken !== "" ? "Bearer " + apiBearerToken : undefined
+				}
 			});
 
 			if (response_preview.data.response.trim() != "") { // default if empty
@@ -254,6 +261,36 @@ function activate(context: vscode.ExtensionContext) {
 		...completionKeys.split("")
 	);
 
+	// Bearer token secret handling
+	context.secrets.get("apiBearerToken").then(value => {
+		apiBearerToken = value || ""
+	})
+
+	const bearerSetChangeEvent = context.secrets.onDidChange((event) => {
+		if (event.key === "apiBearerToken") {
+			context.secrets.get("apiBearerToken").then(value => {
+				apiBearerToken = value || ""
+			})
+		}
+	})
+
+	const externalSetBearerCommand = vscode.commands.registerCommand(
+		"ollama-autocoder.setBearerToken",
+		async () => {
+			const tokenInput: string | undefined = await vscode.window.showInputBox({
+				password: true,
+				title: "Set API bearer token",
+				prompt: "Enter your API key or the username followed by the password, depending on which reverse proxy you are using. If you would like to remove the authorization header, type [SPACE] and submit."
+			});
+
+			if (tokenInput && tokenInput.trim() !== "") {
+				context.secrets.store("apiBearerToken", tokenInput);
+			} else if (tokenInput) {
+				context.secrets.delete("apiBearerToken");
+			}
+		}
+	)
+
 	// Register a command for getting a completion from Ollama through command/keybind
 	const externalAutocompleteCommand = vscode.commands.registerTextEditorCommand(
 		"ollama-autocoder.autocomplete",
@@ -267,6 +304,8 @@ function activate(context: vscode.ExtensionContext) {
 	try {
 		context.subscriptions.push(completionProvider);
 		context.subscriptions.push(externalAutocompleteCommand);
+		context.subscriptions.push(externalSetBearerCommand);
+		context.subscriptions.push(bearerSetChangeEvent);
 	} catch (err) {
 		handleError(err);
 	}

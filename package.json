@@ -2,7 +2,7 @@
 	"name": "ollama-autocoder",
 	"displayName": "Ollama Autocoder",
 	"description": "A simple to use Ollama autocompletion engine with options exposed and streaming functionality",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"icon": "icon.png",
 	"publisher": "10nates",
 	"license": "MIT",
@@ -50,6 +50,12 @@
 					"type": "string",
 					"default": "http://localhost:11434/api/generate",
 					"description": "The endpoint of the ollama REST API"
+				},
+				"ollama-autocoder.bearer token": {
+					"type": "null",
+					"readOnly": true,
+					"scope": "application",
+					"markdownDescription": "API Bearer token for reverse proxies that require authentication. Not usually needed. [Set token](command:ollama-autocoder.setBearerToken)"
 				},
 				"ollama-autocoder.model": {
 					"type": "string",
@@ -108,6 +114,10 @@
 			{
 				"command": "ollama-autocoder.autocomplete",
 				"title": "Autocomplete with Ollama"
+			},
+			{
+				"command": "ollama-autocoder.setBearerToken",
+				"title": "Set Ollama API Bearer Token"
 			}
 		]
 	},
