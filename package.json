@@ -79,9 +79,9 @@
 					"description": "The size of the prompt in characters. NOT tokens, so can be set 1.3-4x the max tokens of the model (varies significantly). If unsure, just use a 1:1 token size."
 				},
 				"ollama-autocoder.completion keys": {
-					"type": "array",
-					"default": [" "],
-					"description": "Characters that the autocompletion item provider appear on. '\\n' will be parsed as the newline character, REQUIRES RELOAD"
+					"type": "string",
+					"default": " ",
+					"description": "Character that the autocompletion item provider appear on. Multiple characters will be treated as different entries. '\\n' is parsed as the newline character. REQUIRES RELOAD"
 				},
 				"ollama-autocoder.response preview": {
 					"type": "boolean",

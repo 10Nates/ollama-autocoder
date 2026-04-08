@@ -11,7 +11,7 @@ let apiMessageHeader: string;
 let apiTemperature: number;
 let numPredict: number;
 let promptWindowSize: number;
-let completionKeys: Array<string>;
+let completionKeys: string;
 let responsePreview: boolean | undefined;
 let responsePreviewMaxTokens: number;
 let responsePreviewDelay: number;
@@ -24,7 +24,7 @@ function updateVSConfig() {
 	apiMessageHeader = VSConfig.get("message header") || "";
 	numPredict = VSConfig.get("max tokens predicted") || 0;
 	promptWindowSize = VSConfig.get("prompt window size") || 0;
-	completionKeys = VSConfig.get("completion keys") || [" "];
+	completionKeys = VSConfig.get("completion keys") || " ";
 	responsePreview = VSConfig.get("response preview");
 	responsePreviewMaxTokens = VSConfig.get("preview max tokens") || 0;
 	responsePreviewDelay = VSConfig.get("preview delay") || 0; // Must be || 0 instead of || [default] because of truthy
@@ -258,7 +258,7 @@ function activate(context: vscode.ExtensionContext) {
 	const completionProvider = vscode.languages.registerCompletionItemProvider("*", {
 		provideCompletionItems
 	},
-		...completionKeys.map((s) => s.replace("\\n", "\n"))
+		...completionKeys.replace("\\n", "\n").split("")
 	);
 
 	// Bearer token secret handling
