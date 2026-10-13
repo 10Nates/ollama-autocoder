@@ -99,7 +99,7 @@
 						"type": "string",
 						"title": "completion key"
 					},
-					"default": [" "],
+					"default": [" ", "\\n"],
 					"description": "Characters that the autocompletion item provider appear on. A string value is also accepted (older versions used a single string) and coerced to array form. '\\n' is parsed as the newline character. REQUIRES RELOAD"
 				},
 				"ollama-autocoder.response preview": {
@@ -114,7 +114,7 @@
 				},
 				"ollama-autocoder.preview delay": {
 					"type": "number",
-					"default": 1,
+					"default": 0.2,
 					"description": "Time to wait in seconds before starting inline preview generation. Prevents the Ollama server from running briefly every time the completion key is pressed, which causes unnecessary compute usage. If you are not on a battery powered device, set this to 0 for a more responsive experience."
 				},
 				"ollama-autocoder.temperature": {
