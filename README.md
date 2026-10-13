@@ -12,7 +12,7 @@ a git-diff-style proposal box for multi-line completions.
   the **chat API** (`http://localhost:11434/api/chat`). For installing Ollama, visit
   [ollama.ai](https://ollama.ai).
 - Ollama must have the `model` from settings installed. The current default is
-  `qwen2.5-coder:latest`. Any modern instruction- or code-tuned model works; because
+  `ornith-1.5:9b`. Any modern instruction- or code-tuned model works; because
   completions now go through the chat API with a system prompt, a model that follows a
   chat structure produces the best results.
 - The `prompt window size` should be in line with the model's maximum context window.

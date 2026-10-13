@@ -59,7 +59,7 @@
 				},
 				"ollama-autocoder.model": {
 					"type": "string",
-					"default": "qwen2.5-coder:latest",
+					"default": "ornith-1.5:9b",
 					"description": "The model to use for generating completions"
 				},
 				"ollama-autocoder.system prompt": {
