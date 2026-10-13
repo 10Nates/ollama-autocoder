@@ -29,7 +29,7 @@ let lookaheadChars: number;
 // The proposal is shown in a native VS Code diff editor against the current
 // document. The "proposed" side lives in an in-memory document served by a content
 // provider, so it can be edited ("modified") live without touching the source file.
-const proposalScheme = "ollama-proposal";
+const proposalScheme = "ollama-autocoder";
 const proposalContents = new Map<string, string>();
 let activeSession: ProposalSession | undefined;
 let proposalId = 0;
@@ -70,7 +70,8 @@ function substitute(template: string, document: vscode.TextDocument): string {
 	return template
 		.replace("{LANG}", document.languageId)
 		.replace("{FILE_NAME}", document.fileName)
-		.replace("{PROJECT_NAME}", vscode.workspace.name || "Untitled");
+		.replace("{PROJECT_NAME}", vscode.workspace.name || "Untitled")
+		.replace("{REPLACEMENT_KEYWORD}", replacementKeyword);
 }
 
 type Mode = "line" | "block";
