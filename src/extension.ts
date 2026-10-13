@@ -50,7 +50,14 @@ function updateVSConfig() {
 	systemPrompt = c.get("system prompt") ?? "";
 	numPredict = c.get("max tokens predicted") || 0;
 	promptWindowSize = c.get("prompt window size") || 0;
-	completionKeys = c.get("completion keys") || [" "];
+	// "completion keys" used to be a string before it became an array. A legacy
+	// or stray non-array value is still truthy, so the old `|| [" "]` fallback
+	// would let it through and then `.map()` in activate() would throw. Coerce
+	// any value into an array of strings, defaulting to [" "] when it is empty.
+	const rawKeys = c.get("completion keys");
+	const keyList = Array.isArray(rawKeys) ? rawKeys : rawKeys === undefined ? [] : [rawKeys];
+	completionKeys = keyList.filter((k): k is string => typeof k === "string");
+	if (completionKeys.length === 0) completionKeys = [" "];
 	responsePreview = c.get("response preview");
 	responsePreviewMaxTokens = c.get("preview max tokens") || 0;
 	responsePreviewDelay = c.get("preview delay") || 0; // || 0 not || [default] because 0 is falsy
