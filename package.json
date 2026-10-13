@@ -62,6 +62,11 @@
 					"default": "ornith-1.5:9b",
 					"description": "The model to use for generating completions"
 				},
+				"ollama-autocoder.think": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether to send 'think: true' to the model. Thinking/reasoning models emit their reply into a separate reasoning stream, leaving the completion (message.content) empty, so completions silently disappear. Leave this false unless you specifically want the model to reason. Only affects thinking-capable models."
+				},
 				"ollama-autocoder.system prompt": {
 					"type": "string",
 					"editPresentation": "multilineText",

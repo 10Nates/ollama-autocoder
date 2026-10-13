@@ -24,6 +24,9 @@ let responsePreviewDelay: number;
 let apiTemperature: number;
 let replacementKeyword: string;
 let lookaheadChars: number;
+// Thinking/reasoning models put output in message.thinking, leaving content
+// empty; disabling the reasoning phase routes the completion into content.
+let think: boolean;
 
 // --- Diff-box (multi-line proposal) state ------------------------------------
 // The proposal is shown in a native VS Code diff editor against the current
@@ -65,6 +68,9 @@ function updateVSConfig() {
 	// The keyword may contain a literal newline, so use ?? (not ||) to respect an empty value.
 	replacementKeyword = c.get("replacement keyword") ?? "<|COMPLETE|>";
 	lookaheadChars = c.get("lookahead") || 0;
+	// Thinking/reasoning models emit their completion into a separate reasoning
+	// stream (message.thinking), leaving message.content empty. Default to off.
+	think = c.get("think") ?? false;
 }
 
 updateVSConfig();
@@ -128,6 +134,11 @@ function buildPrompt(document: vscode.TextDocument, position: vscode.Position, m
 function buildPayload(document: vscode.TextDocument, prompt: Prompt, stream: boolean, numTokens: number) {
 	return {
 		model: apiModel,
+		// Thinking/reasoning models route their output into message.thinking,
+		// leaving message.content empty, so the completion vanishes. Disabling the
+		// reasoning phase puts it in content. NOTE: this must be top-level —
+		// Ollama silently ignores "think" when nested inside options.
+		think,
 		messages: [
 			{ role: "system", content: substitute(systemPrompt, document) },
 			{ role: "user", content: prompt.user },
