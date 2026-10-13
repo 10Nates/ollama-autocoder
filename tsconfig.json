@@ -6,7 +6,8 @@
 		"outDir": "out",
 		"sourceMap": true,
 		"strict": true,
-		"rootDir": "src"
+		"rootDir": "src",
+		"types": ["node", "vscode"]
 	},
 	"exclude": [
 		"node_modules",
