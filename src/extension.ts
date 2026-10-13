@@ -2,11 +2,12 @@
 // Modernized (v0.2.0) for newer Ollama models:
 //   * real system prompting via the chat API (messages: system + user),
 //   * a "replacement keyword" marker at the cursor that the model completes from,
-//   * a "lookahead" stop boundary so the completion stops at the code that already
-//     follows — the model "sees ahead" and bridges in without overwriting it.
-// The completion is shown on a completion key and filled inline with a selection to
-// undo. It stops at the end of the line like a single-line autocomplete suggestion;
-// lookahead additionally halts it at the following code when that comes first.
+//   * a "lookahead" stop boundary so the explicit (multi-line) command stops at the
+//     code that already follows — the model "sees ahead" and bridges in without
+//     overwriting it.
+// The on-completion-key suggestion is single-line (it stops at the next newline, like a
+// legacy autocomplete); the command runs a full multi-line generation. Both stream into
+// the cursor with a selection to undo.
 
 import * as vscode from "vscode";
 import axios from "axios";
@@ -78,12 +79,13 @@ interface Prompt {
 }
 
 // Build the modern prompt: the code before the cursor (windowed), a marker the model
-// completes from, and stop sequences for its output. A newline always stops it (a
-// single-line suggestion, the frequent case); the lookahead boundary additionally
-// stops it at the following code's first non-empty line when that comes first. The
-// lookahead is a stop hint only — it is NOT sent to the model as input, so following
-// code is never part of its context beyond what the model itself generates.
-function buildPrompt(document: vscode.TextDocument, position: vscode.Position): Prompt {
+// completes from, and a stop boundary chosen by `stopAtNewline`. The frequent
+// on-completion-key *suggestion* is single-line: a newline always halts it, like a
+// legacy autocomplete. The explicit *command* runs a full multi-line generation that
+// "sees ahead" and stops at the following code's first non-empty line instead of a
+// newline. The lookahead is a stop hint only — it is NOT sent to the model as input, so
+// following code is never part of its context beyond what the model itself generates.
+function buildPrompt(document: vscode.TextDocument, position: vscode.Position, stopAtNewline: boolean): Prompt {
 	// Everything before the cursor, windowed to the prompt window.
 	const before = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
 	const windowed = before.length > promptWindowSize ? before.slice(before.length - promptWindowSize) : before;
@@ -92,16 +94,19 @@ function buildPrompt(document: vscode.TextDocument, position: vscode.Position): 
 	const marker = windowed.endsWith("\n") ? replacementKeyword : "\n" + replacementKeyword;
 	const user = windowed + marker;
 
-	// A newline always stops the model's output. The on-completion-key suggestion is
-	// meant to emulate a legacy single-line autocomplete that runs very frequently, so it
-	// stops at the end of the current line unconditionally (and never echoes the marker).
+	// Never echo the marker back.
 	const stop: string[] = replacementKeyword ? [replacementKeyword] : [];
-	stop.push("\n");
 
-	// Lookahead ("see ahead"): also stop at the first non-empty line of the code that
-	// already follows the cursor. It is a secondary boundary — a newline stops first in
-	// the common case — that halts the completion where the next code resumes when that
-	// lands before the next newline, so it bridges in instead of overwriting it.
+	if (stopAtNewline) {
+		// The on-completion-key suggestion is a single line: always stop when the model
+		// would continue onto the next line.
+		stop.push("\n");
+		return { user, stop };
+	}
+
+	// The explicit command runs a full multi-line generation that "sees ahead": keep
+	// generating across newlines, but stop at the first non-empty line of the code that
+	// already follows the cursor so it bridges in instead of overwriting it.
 	if (lookaheadChars > 0) {
 		const end = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
 		const ahead = document.getText(new vscode.Range(position, end));
@@ -165,10 +170,9 @@ async function handleError(err: any) {
 	console.error(err);
 }
 
-// Inline completion: stream into the cursor with a selection to undo, like a legacy
-// single-line autocomplete suggestion. It stops at the next newline unconditionally;
-// the lookahead boundary (see buildPrompt) halts it at the following code's first
-// non-empty line when that comes first.
+// Full (multi-line) completion, run by the command: stream into the cursor with a
+// selection to undo. It "sees ahead" (see buildPrompt) and stops at the code that
+// already follows, so it is deliberately NOT stopped at the first newline.
 async function inlineComplete(textEditor: vscode.TextEditor) {
 	const document = textEditor.document;
 	const position = textEditor.selection.active;
@@ -194,7 +198,7 @@ async function inlineComplete(textEditor: vscode.TextEditor) {
 					vscode.workspace.onDidCloseTextDocument(cancelPost);
 				});
 
-				const prompt = buildPrompt(document, position);
+				const prompt = buildPrompt(document, position, false);
 				const body = buildPayload(document, prompt, true, numPredict);
 
 				const response = await axios.post(apiEndpoint, body, {
@@ -287,7 +291,7 @@ async function provideCompletionItems(document: vscode.TextDocument, position: v
 	// Set the label & insert text to a shortened, non-stream single-line preview
 	if (responsePreview) {
 		try {
-			const prompt = buildPrompt(document, position);
+			const prompt = buildPrompt(document, position, true);
 			const body = buildPayload(document, prompt, false, responsePreviewMaxTokens);
 
 			const response_preview = await axios.post(apiEndpoint, body, {

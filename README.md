@@ -27,9 +27,10 @@ token streaming.
    - Alternatively, run the `Autocomplete with Ollama` command from the command
      palette (or on a keybind you set).
 2. Tokens stream into the cursor and are left *selected*, so a single `undo` reverts
-   the whole completion. It stops at the end of the line, like a single-line
-   autocomplete suggestion (`lookahead` additionally halts it at the following code
-   when that comes first).
+   the whole completion. Pressing a completion key gives a single-line hint that stops
+   at the end of the line, like a legacy autocomplete; the `Autocomplete with Ollama`
+   command instead runs a full multi-line generation that stops where the following code
+   resumes (`lookahead`).
 3. To stop early, click "Cancel" on the `Ollama Autocoder` notification or start typing.
 4. When generation stops, the notification disappears.
 
@@ -47,7 +48,7 @@ All settings live under `Ollama Autocoder` in `settings.json` or the Settings UI
 | `max tokens predicted` | `10000` | Maximum number of tokens generated per completion. |
 | `prompt window size` | `200000` | How much code before the cursor to include in the prompt, in characters. |
 | `replacement keyword` | `<\|COMPLETE\|>` | A marker placed at the cursor that the model completes _from_ and that also acts as a stop sequence, so it is never repeated in the output. Pick something that does not appear in your code. |
-| `lookahead` | `20000` | How far past the cursor to look for a stop boundary. A newline always stops the completion first (it emulates a single-line autocomplete); the following code's first non-empty line only halts it when that comes before a newline. `0` disables see-ahead. |
+| `lookahead` | `20000` | How far past the cursor to look for a stop boundary on the *multi-line* Autocomplete command: the completion stops at the following code's first non-empty line instead of overwriting it. The on-completion-key suggestion always stops at the end of its line. `0` completes the command to the end of the document. |
 | `completion keys` | `[" ", "\n"]` | Characters that invoke the completion provider. `\n` is parsed as a newline. **Requires reload.** |
 | `response preview` | `true` | Use the first line of the response as the inline preview label. Not streamable; disable on slow devices. |
 | `preview max tokens` | `50` | Maximum number of tokens generated for the inline preview. |
@@ -58,7 +59,7 @@ All settings live under `Ollama Autocoder` in `settings.json` or the Settings UI
 
 | Command | Default keybind | Description |
 | --- | --- | --- |
-| `Autocomplete with Ollama` | _(none)_ | Stream a completion into the cursor with a selection to undo. |
+| `Autocomplete with Ollama` | _(none)_ | Run a full multi-line generation streamed into the cursor with a selection to undo. It "sees ahead" (`lookahead`) and stops at the following code instead of the first newline. |
 | `Set Ollama API Bearer Token` | _(none)_ | Store or clear the bearer token. |
 
 ## Notes
