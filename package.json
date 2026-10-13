@@ -1,7 +1,7 @@
 {
 	"name": "ollama-autocoder",
 	"displayName": "Ollama Autocoder",
-	"description": "A simple Ollama autocompletion engine for newer models: system-prompted completions with lookahead, streaming, and a git-diff proposal box",
+	"description": "A simple Ollama autocompletion engine for newer models: system-prompted, lookahead-aware completions with token streaming",
 	"version": "0.2.0",
 	"icon": "icon.png",
 	"publisher": "10nates",
@@ -91,7 +91,7 @@
 				"ollama-autocoder.lookahead": {
 					"type": "integer",
 					"default": 20000,
-					"description": "Characters of code after the cursor to use as the completion's stop boundary for multi-line proposals. The model stops at the first non-empty line within this window so the proposal bridges into the code that already follows. Set to 0 to propose to the end of the document."
+					"description": "Characters of code after the cursor to look ahead for the completion's stop boundary. The model stops at the first non-empty line within this window so a (possibly multi-line) completion bridges into the code that already follows instead of overwriting it. Set to 0 to complete to the end of the document."
 				},
 				"ollama-autocoder.completion keys": {
 					"type": ["array", "string"],
@@ -130,35 +130,8 @@
 				"title": "Autocomplete with Ollama"
 			},
 			{
-				"command": "ollama-autocoder.autocomplete.line",
-				"title": "Autocomplete Line with Ollama",
-				"category": "Ollama Autocoder"
-			},
-			{
-				"command": "ollama-autocoder.propose",
-				"title": "Propose Ollama Completion",
-				"category": "Ollama Autocoder"
-			},
-			{
 				"command": "ollama-autocoder.setBearerToken",
 				"title": "Set Ollama API Bearer Token"
-			}
-		],
-		"keybindings": [
-			{
-				"command": "ollama-autocoder.propose",
-				"key": "ctrl+alt+i",
-				"when": "editorTextFocus"
-			},
-			{
-				"command": "ollama-autocoder.accept",
-				"key": "ctrl+enter",
-				"when": "editorTextFocus"
-			},
-			{
-				"command": "ollama-autocoder.reject",
-				"key": "ctrl+shift+enter",
-				"when": "editorTextFocus"
 			}
 		]
 	},

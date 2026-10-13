@@ -2,11 +2,10 @@
 // Modernized (v0.2.0) for newer Ollama models:
 //   * real system prompting via the chat API (messages: system + user),
 //   * a "replacement keyword" marker at the cursor that the model completes from,
-//   * a "lookahead" stop boundary so multi-line proposals bridge into the code
-//     that already follows the cursor.
-// The single-line completion (shown on a completion key and filled inline with a
-// selection to undo) is unchanged. Multi-line proposals move to a diff box (see
-// the "propose" flow), which can be accepted, rejected, or modified.
+//   * a "lookahead" stop boundary so the completion stops at the code that already
+//     follows — the model "sees ahead" and bridges in without overwriting it.
+// The completion is shown on a completion key and filled inline with a selection to
+// undo. It can span several lines, but stops as soon as the following code resumes.
 
 import * as vscode from "vscode";
 import axios from "axios";
@@ -27,23 +26,6 @@ let lookaheadChars: number;
 // Thinking/reasoning models put output in message.thinking, leaving content
 // empty; disabling the reasoning phase routes the completion into content.
 let think: boolean;
-
-// --- Diff-box (multi-line proposal) state ------------------------------------
-// The proposal is shown in a native VS Code diff editor against the current
-// document. The "proposed" side lives in an in-memory document served by a content
-// provider, so it can be edited ("modified") live without touching the source file.
-const proposalScheme = "ollama-autocoder";
-const proposalContents = new Map<string, string>();
-let activeSession: ProposalSession | undefined;
-let proposalId = 0;
-
-interface ProposalSession {
-	document: vscode.TextDocument;
-	/** In-memory "proposed" document; its live text holds any user edits ("modify"). */
-	proposalDocument: vscode.TextDocument;
-	proposalUri: vscode.Uri;
-	statusBarItem: vscode.StatusBarItem;
-}
 
 function updateVSConfig() {
 	const c = vscode.workspace.getConfiguration("ollama-autocoder");
@@ -180,87 +162,9 @@ async function handleError(err: any) {
 	console.error(err);
 }
 
-// Generate a full completion and return its text (no insertion). Streaming is
-// cancellable from the progress notification and aborts if the source document
-// changes underneath us (which would invalidate the cursor position).
-async function generateCompletion(
-	document: vscode.TextDocument,
-	position: vscode.Position,
-	numTokens: number,
-): Promise<string> {
-	const prompt = buildPrompt(document, position);
-	const startVersion = document.version;
-
-	return await vscode.window.withProgress(
-		{
-			location: vscode.ProgressLocation.Notification,
-			title: "Ollama Autocoder",
-			cancellable: true,
-		},
-		async (_progress, progressCancellationToken) => {
-			_progress.report({ message: "Starting model..." });
-
-			// axiosCancelPost is assigned by the executor; onClose/onDocChange are
-			// declared here (not inside the executor) so the disposal below can
-			// reach them. The executor runs synchronously during construction, so
-			// referencing axiosCancelToken inside it hit its TDZ ("Cannot access
-			// 'axiosCancelToken' before initialization") and crashed every propose.
-			let axiosCancelPost: () => void;
-			let onClose: vscode.Disposable;
-			let onDocChange: vscode.Disposable;
-			const axiosCancelToken = new axios.CancelToken((c) => {
-				const cancelPost = function () {
-					c("Autocompletion request terminated by user cancel");
-				};
-				axiosCancelPost = cancelPost;
-				progressCancellationToken.onCancellationRequested(cancelPost);
-				// Abort if the source document closes or changes underneath us
-				// (the box generation does not insert live, so a version change is the
-				// signal the user is now editing the same document).
-				onClose = vscode.workspace.onDidCloseTextDocument((closed) => {
-					if (closed === document) axiosCancelPost();
-				});
-				onDocChange = vscode.workspace.onDidChangeTextDocument((e) => {
-					if (e.document === document && document.version !== startVersion) axiosCancelPost();
-				});
-			});
-
-			const response = await axios.post(apiEndpoint, buildPayload(document, prompt, true, numTokens), {
-				cancelToken: axiosCancelToken,
-				responseType: 'stream',
-				headers: {
-					Authorization: apiBearerToken !== "" ? "Bearer " + apiBearerToken : undefined,
-				},
-			});
-
-			let text = "";
-			const done = new Promise<void>((resolve) => {
-				response.data.on('data', (chunk: Buffer) => {
-					const chunk2 = parseChunk(chunk);
-					if (chunk2 !== "") text += chunk2;
-				});
-				response.data.on('end', () => resolve());
-				axiosCancelToken.promise.finally(() => resolve());
-			});
-
-			// Dispose the abort listeners once the request settles (stream end OR
-			// cancel). Disposing on `done` rather than the cancel token also closes
-			// the leak a bare cancel-token promise would leave behind: on a normal
-			// (uncancelled) completion the token's promise never resolves, so the
-			// workspace listeners would otherwise accumulate on every propose.
-			done.finally(() => {
-				onClose?.dispose();
-				onDocChange?.dispose();
-			});
-
-			await done;
-			return text;
-		}
-	);
-}
-
-// inline / single-line completion (behavior unchanged: stream into the cursor with a
-// selection highlight so the user can undo). "Line completion stays the same."
+// Inline completion: stream into the cursor with a selection to undo. The model
+// 'sees ahead' — the lookahead boundary (see buildPrompt) stops it at the code that
+// already follows, so it can span several lines without overwriting the next code.
 async function inlineComplete(textEditor: vscode.TextEditor) {
 	const document = textEditor.document;
 	const position = textEditor.selection.active;
@@ -407,115 +311,15 @@ async function provideCompletionItems(document: vscode.TextDocument, position: v
 
 	// Set the documentation to a message
 	item.documentation = new vscode.MarkdownString('Press `Enter` to get an autocompletion from Ollama');
-	// The completion item is the "quick" single-line path, so accepting it runs the
-	// single-line inline command rather than the multi-line proposal.
+	// Keep the same inline behavior as before: accepting the item runs the command that
+	// streams the completion into the cursor with a selection to undo.
 	item.command = {
-		command: 'ollama-autocoder.autocomplete.line',
-		title: 'Autocomplete Line with Ollama',
+		command: 'ollama-autocoder.autocomplete',
+		title: 'Autocomplete with Ollama',
 		arguments: [cancellationToken],
 	};
 	// Return the completion item
 	return [item];
-}
-
-// Show a multi-line proposal as a git-diff-like box the user can accept, reject,
-// or modify. The "proposed" side is an in-memory, editable document, so the user
-// can tweak the proposal directly before accepting.
-async function showProposalBox(document: vscode.TextDocument, position: vscode.Position, generated: string) {
-	// Dismiss any dangling proposal first.
-	disposeSession();
-
-	if (generated.trim() === "") return;
-
-	// Rebuild the proposal from the current document so it reflects live edits.
-	const end = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
-	const before = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
-	const after = document.getText(new vscode.Range(position, end));
-	const proposed = before + generated + after;
-
-	// Serve the proposed content from an in-memory document so it's editable.
-	const proposalUri = vscode.Uri.parse(`${proposalScheme}://proposal-${proposalId++}`);
-	proposalContents.set(proposalUri.toString(), proposed);
-	const proposalDocument = await vscode.workspace.openTextDocument(proposalUri);
-	try {
-		await vscode.languages.setTextDocumentLanguage(proposalDocument, document.languageId);
-	} catch (_e) {
-		/* language may be unknown; ignore */
-	}
-
-	// Open the native diff editor: original on the left, proposed (editable) on the right.
-	await vscode.commands.executeCommand(
-		"vscode.diff",
-		document.uri,
-		proposalUri,
-		"Original ⇆ Ollama Autocoder",
-	);
-
-	// Accept / reject controls.
-	const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-	statusBarItem.text = "$(check-all) Ollama proposal";
-	statusBarItem.tooltip =
-		"Accept (Ctrl+Enter) / Reject (Ctrl+Shift+Enter) the Ollama proposal. " +
-		"Click into the right panel to modify the proposal, then accept.";
-	statusBarItem.command = "ollama-autocoder.accept";
-	statusBarItem.show();
-
-	activeSession = { document, proposalDocument, proposalUri, statusBarItem };
-}
-
-// Replace the whole source document with the (possibly "modified") proposal text.
-async function acceptSession() {
-	const session = activeSession;
-	if (!session) return;
-	// getText() is live, so any edits the user made in the right panel are included.
-	const text = session.proposalDocument.getText();
-	disposeSession();
-
-	const doc = session.document;
-	const full = new vscode.Range(0, 0, doc.lineCount - 1, doc.lineAt(doc.lineCount - 1).text.length);
-	const edit = new vscode.WorkspaceEdit();
-	edit.replace(doc.uri, full, text);
-	await vscode.workspace.applyEdit(edit);
-	// Return focus to the source; the diff now shows "no changes", confirming the accept.
-	if (vscode.workspace.textDocuments.includes(doc)) {
-		try {
-			await vscode.window.showTextDocument(doc);
-		} catch (_e) {
-			/* ignore a document that was closed before we could refocus it */
-		}
-	}
-}
-
-async function rejectSession() {
-	const session = activeSession;
-	if (!session) return;
-	disposeSession();
-	// Return focus to the source without applying anything, if it's still open.
-	if (vscode.workspace.textDocuments.includes(session.document)) {
-		try {
-			await vscode.window.showTextDocument(session.document);
-		} catch (_e) {
-			/* ignore a document that was closed */
-		}
-	}
-}
-
-// Tear down the active proposal, if any.
-function disposeSession() {
-	const session = activeSession;
-	if (!session) return;
-	activeSession = undefined;
-	session.statusBarItem.dispose();
-	proposalContents.delete(session.proposalUri.toString());
-}
-
-// Generate a multi-line block for the active editor and open the diff box for it.
-async function proposeBlock() {
-	const editor = vscode.window.activeTextEditor;
-	if (!editor) return;
-	const position = editor.selection.active;
-	const generated = await generateCompletion(editor.document, position, numPredict);
-	await showProposalBox(editor.document, position, generated);
 }
 
 // This method is called when extension is activated
@@ -557,63 +361,22 @@ function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	// The legacy "ollama-autocoder.autocomplete" command used to be the multi-line
-	// proposal; restore that so existing users and keybinds aren't surprised.
-	// (Multi-line proposals open the diff box — see the "propose" command below.)
+	// Inline completion as a command. The completion-item path passes a cancellation
+	// token as its argument (not a TextEditor), so target the active editor explicitly.
 	const internalAutocompleteCommand = vscode.commands.registerCommand(
 		"ollama-autocoder.autocomplete",
-		(..._args: any[]) => {
-			proposeBlock();
-		},
-	);
-
-	// Single-line inline completion as its own command. It was previously reachable
-	// only by accepting a completion item (i.e. waiting for its preview to resolve);
-	// now it is directly invocable from the palette. The completion-item path passes a
-	// token rather than an editor, so target the active editor explicitly.
-	const inlineAutocompleteLineCommand = vscode.commands.registerCommand(
-		"ollama-autocoder.autocomplete.line",
 		(..._args: any[]) => {
 			const ed = vscode.window.activeTextEditor;
 			if (ed) inlineComplete(ed);
 		},
 	);
 
-	// Serve in-memory "proposed" documents so the diff box's right (proposed) side is
-	// editable, i.e. the user can modify a proposal before accepting.
-	const proposalProvider: vscode.TextDocumentContentProvider = {
-		provideTextDocumentContent: (uri) => proposalContents.get(uri.toString()) ?? "",
-	};
-
-	// Register the multi-line diff-box proposal and its accept / reject controls.
-	const proposeCommand = vscode.commands.registerCommand("ollama-autocoder.propose", () => proposeBlock());
-	const acceptCommand = vscode.commands.registerCommand("ollama-autocoder.accept", () => acceptSession());
-	const rejectCommand = vscode.commands.registerCommand("ollama-autocoder.reject", () => rejectSession());
-
-	// Clean up (reject) automatically when the source or proposal document is closed.
-	// VS Code has no editor-close event for diff editors, and a diff tab's panes are not
-	// TextEditors (so onDidChangeVisibleTextEditors can't see the proposal either); watching
-	// the closed documents is the reliable signal that a proposal is no longer in play.
-	const onDidCloseProposalDocument = vscode.workspace.onDidCloseTextDocument((closed) => {
-		const session = activeSession;
-		if (!session) return;
-		if (closed === session.document || closed.uri.toString() === session.proposalUri.toString()) {
-			rejectSession();
-		}
-	});
-
-	// Add the commands & providers to the context
+	// Add the commands & completion provider to the context
 	try {
 		context.subscriptions.push(completionProvider);
 		context.subscriptions.push(internalAutocompleteCommand);
-		context.subscriptions.push(inlineAutocompleteLineCommand);
 		context.subscriptions.push(externalSetBearerCommand);
 		context.subscriptions.push(bearerSetChangeEvent);
-		context.subscriptions.push(proposeCommand);
-		context.subscriptions.push(acceptCommand);
-		context.subscriptions.push(rejectCommand);
-		context.subscriptions.push(onDidCloseProposalDocument);
-		context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(proposalScheme, proposalProvider));
 	} catch (err) {
 		handleError(err);
 	}
