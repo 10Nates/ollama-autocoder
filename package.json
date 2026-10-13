@@ -130,6 +130,11 @@
 				"title": "Autocomplete with Ollama"
 			},
 			{
+				"command": "ollama-autocoder.autocomplete.line",
+				"title": "Autocomplete Line with Ollama",
+				"category": "Ollama Autocoder"
+			},
+			{
 				"command": "ollama-autocoder.propose",
 				"title": "Propose Ollama Completion",
 				"category": "Ollama Autocoder"

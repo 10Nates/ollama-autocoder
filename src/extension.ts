@@ -408,10 +408,11 @@ async function provideCompletionItems(document: vscode.TextDocument, position: v
 
 	// Set the documentation to a message
 	item.documentation = new vscode.MarkdownString('Press `Enter` to get an autocompletion from Ollama');
-	// Keep the same inline behavior as before when the item is accepted.
+	// The completion item is the "quick" single-line path, so accepting it runs the
+	// single-line inline command rather than the multi-line proposal.
 	item.command = {
-		command: 'ollama-autocoder.autocomplete',
-		title: 'Autocomplete with Ollama',
+		command: 'ollama-autocoder.autocomplete.line',
+		title: 'Autocomplete Line with Ollama',
 		arguments: [cancellationToken],
 	};
 	// Return the completion item
@@ -557,13 +558,24 @@ function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	// Register the inline (single-line) completion command. Behavior unchanged from
-	// before; multi-line proposals use the diff box below.
+	// The legacy "ollama-autocoder.autocomplete" command used to be the multi-line
+	// proposal; restore that so existing users and keybinds aren't surprised.
+	// (Multi-line proposals open the diff box — see the "propose" command below.)
 	const internalAutocompleteCommand = vscode.commands.registerCommand(
 		"ollama-autocoder.autocomplete",
-		(textEditor: vscode.TextEditor, ..._args: any[]) => {
-			// The completion-item path passes args positionally; use the active editor otherwise.
-			const ed = textEditor || vscode.window.activeTextEditor;
+		(..._args: any[]) => {
+			proposeBlock();
+		},
+	);
+
+	// Single-line inline completion as its own command. It was previously reachable
+	// only by accepting a completion item (i.e. waiting for its preview to resolve);
+	// now it is directly invocable from the palette. The completion-item path passes a
+	// token rather than an editor, so target the active editor explicitly.
+	const inlineAutocompleteLineCommand = vscode.commands.registerCommand(
+		"ollama-autocoder.autocomplete.line",
+		(..._args: any[]) => {
+			const ed = vscode.window.activeTextEditor;
 			if (ed) inlineComplete(ed);
 		},
 	);
@@ -595,6 +607,7 @@ function activate(context: vscode.ExtensionContext) {
 	try {
 		context.subscriptions.push(completionProvider);
 		context.subscriptions.push(internalAutocompleteCommand);
+		context.subscriptions.push(inlineAutocompleteLineCommand);
 		context.subscriptions.push(externalSetBearerCommand);
 		context.subscriptions.push(bearerSetChangeEvent);
 		context.subscriptions.push(proposeCommand);
