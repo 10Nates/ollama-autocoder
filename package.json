@@ -125,8 +125,30 @@
 				"title": "Autocomplete with Ollama"
 			},
 			{
+				"command": "ollama-autocoder.propose",
+				"title": "Propose Ollama Completion",
+				"category": "Ollama Autocoder"
+			},
+			{
 				"command": "ollama-autocoder.setBearerToken",
 				"title": "Set Ollama API Bearer Token"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "ollama-autocoder.propose",
+				"key": "ctrl+alt+i",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "ollama-autocoder.accept",
+				"key": "ctrl+enter",
+				"when": "editorTextFocus"
+			},
+			{
+				"command": "ollama-autocoder.reject",
+				"key": "ctrl+shift+enter",
+				"when": "editorTextFocus"
 			}
 		]
 	},
