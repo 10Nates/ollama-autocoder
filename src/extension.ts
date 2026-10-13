@@ -87,8 +87,6 @@ function substitute(template: string, document: vscode.TextDocument): string {
 		.replace("{REPLACEMENT_KEYWORD}", replacementKeyword);
 }
 
-type Mode = "line" | "block";
-
 interface Prompt {
 	/** The full user message sent to the model. */
 	user: string;
@@ -96,9 +94,14 @@ interface Prompt {
 	stop: string[];
 }
 
-// Build the modern prompt: code before the cursor (windowed) + the replacement
-// keyword marker, plus a lookahead stop boundary for block proposals.
-function buildPrompt(document: vscode.TextDocument, position: vscode.Position, mode: Mode): Prompt {
+// Build the modern prompt: the code before the cursor (windowed), a marker the model
+// completes from, and a lookahead boundary so it stops at the code that already
+// follows. This lets the model "see ahead" and bridge in instead of overwriting the
+// next code, and is what makes an inline completion multi-line-capable: it keeps
+// generating across newlines until it reaches the first non-empty line ahead. The
+// lookahead is a stop hint only — it is NOT sent to the model as input, so following
+// code is never part of its context beyond what the model itself generates.
+function buildPrompt(document: vscode.TextDocument, position: vscode.Position): Prompt {
 	// Everything before the cursor, windowed to the prompt window.
 	const before = document.getText(new vscode.Range(document.lineAt(0).range.start, position));
 	const windowed = before.length > promptWindowSize ? before.slice(before.length - promptWindowSize) : before;
@@ -107,16 +110,13 @@ function buildPrompt(document: vscode.TextDocument, position: vscode.Position, m
 	const marker = windowed.endsWith("\n") ? replacementKeyword : "\n" + replacementKeyword;
 	const user = windowed + marker;
 
-	// Never echo the marker back, and (for the line) stop at the end of the current line.
+	// Never echo the marker back.
 	const stop: string[] = replacementKeyword ? [replacementKeyword] : [];
-	if (mode === "line") {
-		stop.push("\n");
-		return { user, stop };
-	}
 
-	// "block": use a lookahead so the proposal stops where the code that already follows
-	// begins, instead of overwriting it. The lookahead is NOT sent to the model as trailing
-	// input (that would make it continue past the marker); it only finds the stop boundary.
+	// Lookahead: stop at the first non-empty line of the code that already follows the
+	// cursor, so the completion stops where the next code begins instead of overwriting
+	// it. This is the old multi-line behavior — the model can span several lines but is
+	// halted as soon as the following code resumes.
 	if (lookaheadChars > 0) {
 		const end = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
 		const ahead = document.getText(new vscode.Range(position, end));
@@ -186,10 +186,9 @@ async function handleError(err: any) {
 async function generateCompletion(
 	document: vscode.TextDocument,
 	position: vscode.Position,
-	mode: Mode,
 	numTokens: number,
 ): Promise<string> {
-	const prompt = buildPrompt(document, position, mode);
+	const prompt = buildPrompt(document, position);
 	const startVersion = document.version;
 
 	return await vscode.window.withProgress(
@@ -287,7 +286,7 @@ async function inlineComplete(textEditor: vscode.TextEditor) {
 					vscode.workspace.onDidCloseTextDocument(cancelPost);
 				});
 
-				const prompt = buildPrompt(document, position, "line");
+				const prompt = buildPrompt(document, position);
 				const body = buildPayload(document, prompt, true, numPredict);
 
 				const response = await axios.post(apiEndpoint, body, {
@@ -380,7 +379,7 @@ async function provideCompletionItems(document: vscode.TextDocument, position: v
 	// Set the label & insert text to a shortened, non-stream single-line preview
 	if (responsePreview) {
 		try {
-			const prompt = buildPrompt(document, position, "line");
+			const prompt = buildPrompt(document, position);
 			const body = buildPayload(document, prompt, false, responsePreviewMaxTokens);
 
 			const response_preview = await axios.post(apiEndpoint, body, {
@@ -515,7 +514,7 @@ async function proposeBlock() {
 	const editor = vscode.window.activeTextEditor;
 	if (!editor) return;
 	const position = editor.selection.active;
-	const generated = await generateCompletion(editor.document, position, "block", numPredict);
+	const generated = await generateCompletion(editor.document, position, numPredict);
 	await showProposalBox(editor.document, position, generated);
 }
 
