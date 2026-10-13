@@ -152,7 +152,7 @@ async function handleError(err: any) {
 	if (err.code === 'ECONNREFUSED') error_reason = "ECONNREFUSED — Ollama is likely not running";
 	if (err.code === 'ERR_BAD_REQUEST') error_reason = "ERR_BAD_REQUEST — Settings are likely misconfigured";
 
-	let error_response = err.message;
+	const error_response = err.message;
 
 	// Show an error message
 	vscode.window.showErrorMessage(
@@ -497,16 +497,16 @@ function activate(context: vscode.ExtensionContext) {
 
 	// Bearer token secret handling
 	context.secrets.get("apiBearerToken").then(value => {
-		apiBearerToken = value || ""
-	})
+		apiBearerToken = value || "";
+	});
 
 	const bearerSetChangeEvent = context.secrets.onDidChange((event) => {
 		if (event.key === "apiBearerToken") {
 			context.secrets.get("apiBearerToken").then(value => {
-				apiBearerToken = value || ""
-			})
+				apiBearerToken = value || "";
+			});
 		}
-	})
+	});
 
 	const externalSetBearerCommand = vscode.commands.registerCommand(
 		"ollama-autocoder.setBearerToken",
@@ -523,7 +523,7 @@ function activate(context: vscode.ExtensionContext) {
 				context.secrets.delete("apiBearerToken");
 			}
 		}
-	)
+	);
 
 	// Register the inline (single-line) completion command. Behavior unchanged from
 	// before; multi-line proposals use the diff box below.
