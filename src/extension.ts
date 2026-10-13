@@ -201,7 +201,14 @@ async function generateCompletion(
 		async (_progress, progressCancellationToken) => {
 			_progress.report({ message: "Starting model..." });
 
+			// axiosCancelPost is assigned by the executor; onClose/onDocChange are
+			// declared here (not inside the executor) so the disposal below can
+			// reach them. The executor runs synchronously during construction, so
+			// referencing axiosCancelToken inside it hit its TDZ ("Cannot access
+			// 'axiosCancelToken' before initialization") and crashed every propose.
 			let axiosCancelPost: () => void;
+			let onClose: vscode.Disposable;
+			let onDocChange: vscode.Disposable;
 			const axiosCancelToken = new axios.CancelToken((c) => {
 				const cancelPost = function () {
 					c("Autocompletion request terminated by user cancel");
@@ -211,15 +218,11 @@ async function generateCompletion(
 				// Abort if the source document closes or changes underneath us
 				// (the box generation does not insert live, so a version change is the
 				// signal the user is now editing the same document).
-				const onClose = vscode.workspace.onDidCloseTextDocument((closed) => {
+				onClose = vscode.workspace.onDidCloseTextDocument((closed) => {
 					if (closed === document) axiosCancelPost();
 				});
-				const onDocChange = vscode.workspace.onDidChangeTextDocument((e) => {
+				onDocChange = vscode.workspace.onDidChangeTextDocument((e) => {
 					if (e.document === document && document.version !== startVersion) axiosCancelPost();
-				});
-				axiosCancelToken.promise.finally(() => {
-					onClose.dispose();
-					onDocChange.dispose();
 				});
 			});
 
@@ -239,6 +242,16 @@ async function generateCompletion(
 				});
 				response.data.on('end', () => resolve());
 				axiosCancelToken.promise.finally(() => resolve());
+			});
+
+			// Dispose the abort listeners once the request settles (stream end OR
+			// cancel). Disposing on `done` rather than the cancel token also closes
+			// the leak a bare cancel-token promise would leave behind: on a normal
+			// (uncancelled) completion the token's promise never resolves, so the
+			// workspace listeners would otherwise accumulate on every propose.
+			done.finally(() => {
+				onClose?.dispose();
+				onDocChange?.dispose();
 			});
 
 			await done;
