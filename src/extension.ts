@@ -5,7 +5,8 @@
 //   * a "lookahead" stop boundary so the completion stops at the code that already
 //     follows — the model "sees ahead" and bridges in without overwriting it.
 // The completion is shown on a completion key and filled inline with a selection to
-// undo. It can span several lines, but stops as soon as the following code resumes.
+// undo. It stops at the end of the line like a single-line autocomplete suggestion;
+// lookahead additionally halts it at the following code when that comes first.
 
 import * as vscode from "vscode";
 import axios from "axios";
@@ -77,10 +78,9 @@ interface Prompt {
 }
 
 // Build the modern prompt: the code before the cursor (windowed), a marker the model
-// completes from, and a lookahead boundary so it stops at the code that already
-// follows. This lets the model "see ahead" and bridge in instead of overwriting the
-// next code, and is what makes an inline completion multi-line-capable: it keeps
-// generating across newlines until it reaches the first non-empty line ahead. The
+// completes from, and stop sequences for its output. A newline always stops it (a
+// single-line suggestion, the frequent case); the lookahead boundary additionally
+// stops it at the following code's first non-empty line when that comes first. The
 // lookahead is a stop hint only — it is NOT sent to the model as input, so following
 // code is never part of its context beyond what the model itself generates.
 function buildPrompt(document: vscode.TextDocument, position: vscode.Position): Prompt {
@@ -92,13 +92,16 @@ function buildPrompt(document: vscode.TextDocument, position: vscode.Position): 
 	const marker = windowed.endsWith("\n") ? replacementKeyword : "\n" + replacementKeyword;
 	const user = windowed + marker;
 
-	// Never echo the marker back.
+	// A newline always stops the model's output. The on-completion-key suggestion is
+	// meant to emulate a legacy single-line autocomplete that runs very frequently, so it
+	// stops at the end of the current line unconditionally (and never echoes the marker).
 	const stop: string[] = replacementKeyword ? [replacementKeyword] : [];
+	stop.push("\n");
 
-	// Lookahead: stop at the first non-empty line of the code that already follows the
-	// cursor, so the completion stops where the next code begins instead of overwriting
-	// it. This is the old multi-line behavior — the model can span several lines but is
-	// halted as soon as the following code resumes.
+	// Lookahead ("see ahead"): also stop at the first non-empty line of the code that
+	// already follows the cursor. It is a secondary boundary — a newline stops first in
+	// the common case — that halts the completion where the next code resumes when that
+	// lands before the next newline, so it bridges in instead of overwriting it.
 	if (lookaheadChars > 0) {
 		const end = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
 		const ahead = document.getText(new vscode.Range(position, end));
@@ -162,9 +165,10 @@ async function handleError(err: any) {
 	console.error(err);
 }
 
-// Inline completion: stream into the cursor with a selection to undo. The model
-// 'sees ahead' — the lookahead boundary (see buildPrompt) stops it at the code that
-// already follows, so it can span several lines without overwriting the next code.
+// Inline completion: stream into the cursor with a selection to undo, like a legacy
+// single-line autocomplete suggestion. It stops at the next newline unconditionally;
+// the lookahead boundary (see buildPrompt) halts it at the following code's first
+// non-empty line when that comes first.
 async function inlineComplete(textEditor: vscode.TextEditor) {
 	const document = textEditor.document;
 	const position = textEditor.selection.active;

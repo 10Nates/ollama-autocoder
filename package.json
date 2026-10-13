@@ -91,7 +91,7 @@
 				"ollama-autocoder.lookahead": {
 					"type": "integer",
 					"default": 20000,
-					"description": "Characters of code after the cursor to look ahead for the completion's stop boundary. The model stops at the first non-empty line within this window so a (possibly multi-line) completion bridges into the code that already follows instead of overwriting it. Set to 0 to complete to the end of the document."
+					"description": "Characters of code after the cursor to look ahead for a stop boundary. A newline always stops the completion first (it emulates a single-line autocomplete), so the following code's first non-empty line only halts it when that comes before a newline. Set to 0 to disable see-ahead."
 				},
 				"ollama-autocoder.completion keys": {
 					"type": ["array", "string"],
