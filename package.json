@@ -94,13 +94,13 @@
 					"description": "Characters of code after the cursor to use as the completion's stop boundary for multi-line proposals. The model stops at the first non-empty line within this window so the proposal bridges into the code that already follows. Set to 0 to propose to the end of the document."
 				},
 				"ollama-autocoder.completion keys": {
-					"type": "array",
+					"type": ["array", "string"],
 					"items": {
 						"type": "string",
 						"title": "completion key"
 					},
 					"default": [" "],
-					"description": "Characters that the autocompletion item provider appear on. '\\n' is parsed as the newline character. REQUIRES RELOAD"
+					"description": "Characters that the autocompletion item provider appear on. A string value is also accepted (older versions used a single string) and coerced to array form. '\\n' is parsed as the newline character. REQUIRES RELOAD"
 				},
 				"ollama-autocoder.response preview": {
 					"type": "boolean",
