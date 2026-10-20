@@ -2,6 +2,7 @@
 
 import * as vscode from "vscode";
 import axios from "axios";
+import { StringDecoder } from "string_decoder";
 
 let VSConfig: vscode.WorkspaceConfiguration;
 let apiEndpoint: string;
@@ -116,10 +117,12 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 				}
 				);
 
-				//tracker
+				// HTTP stream chunks are not guaranteed to align with Ollama's NDJSON records.
 				let currentPosition = position;
+				let responseBuffer = "";
+				const responseDecoder = new StringDecoder("utf8");
 
-				response.data.on('data', async (d: Uint8Array) => {
+				const processCompletion = async (line: string) => {
 					progress.report({ message: "Generating..." });
 
 					// Check for user input (cancel)
@@ -128,41 +131,38 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 						return;
 					}
 
-					// Get a completion from the response
-					const completion: string = JSON.parse(d.toString()).response;
-					// lastToken = completion;
+					const completion: string = JSON.parse(line).response;
+					if (completion === "") return;
 
-					if (completion === "") {
-						return;
-					}
-
-					//complete edit for token
 					const edit = new vscode.WorkspaceEdit();
 					edit.insert(document.uri, currentPosition, completion);
 					await vscode.workspace.applyEdit(edit);
 
-					// Move the cursor to the end of the completion
 					const completionLines = completion.split("\n");
 					const newPosition = new vscode.Position(
 						currentPosition.line + completionLines.length - 1,
 						(completionLines.length > 1 ? 0 : currentPosition.character) + completionLines[completionLines.length - 1].length
 					);
-					const newSelection = new vscode.Selection(
-						position,
-						newPosition
-					);
+					const newSelection = new vscode.Selection(position, newPosition);
 					currentPosition = newPosition;
-
-					// completion bar
 					progress.report({ message: "Generating...", increment: 1 / (numPredict / 100) });
-
-					// move cursor
 					textEditor.selection = newSelection;
+				};
+
+				response.data.on('data', async (d: Uint8Array) => {
+					responseBuffer += responseDecoder.write(Buffer.from(d));
+					const records = responseBuffer.split("\n");
+					responseBuffer = records.pop() || "";
+					for (const record of records) {
+						if (record.trim() !== "") await processCompletion(record);
+					}
 				});
 
 				// Keep cancel window available
 				const finished = new Promise((resolve) => {
-					response.data.on('end', () => {
+					response.data.on('end', async () => {
+						responseBuffer += responseDecoder.end();
+						if (responseBuffer.trim() !== "") await processCompletion(responseBuffer);
 						progress.report({ message: "Ollama completion finished." });
 						resolve(true);
 					});
