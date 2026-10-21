@@ -70,7 +70,7 @@
 				"ollama-autocoder.system prompt": {
 					"type": "string",
 					"editPresentation": "multilineText",
-					"default": "You are an expert {LANG} code-completion engine for the project {PROJECT_NAME} (file {FILE_NAME}). Output only the code that belongs at the marker {REPLACEMENT_KEYWORD} and naturally continues toward the code that already follows. Match the surrounding indentation and style. All commentary MUST be a comment. Do not include any code fences. Your response is INSERTED DIRECTLY.",
+					"default": "You are an expert {LANG} code completion engine for the project {PROJECT_NAME} (file {FILE_NAME}). Output ONLY the code that belongs at the marker {REPLACEMENT_KEYWORD}. Match the surrounding indentation and style. All commentary MUST be a comment. Do NOT include ANY code fences. No backticks, no markdown formatting, nothing!!! Your response is INSERTED DIRECTLY. If your output contains anything other than ONLY the code, placed EXACTLY where the marker is, it WILL cause a syntax error. In fact, your response should be such that when pasted exactly at the marker, no additional syntax errors are created at all. If you output code that already exists outside the marker, or backticks, or anything like that, you have failed your purpose as an autocompletion engine.",
 					"description": "The system prompt sent to the model (replaces the old pseudo-system 'message header'). Placeholders {LANG}, {FILE_NAME}, {PROJECT_NAME}, and {REPLACEMENT_KEYWORD} are substituted. Keep the format the same if modified; leave blank for no system prompt."
 				},
 				"ollama-autocoder.max tokens predicted": {
