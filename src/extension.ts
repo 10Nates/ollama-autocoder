@@ -2,7 +2,7 @@
 
 import * as vscode from "vscode";
 import axios from "axios";
-import { StringDecoder } from "string_decoder";
+import { consumeNdjsonStream } from "./streaming";
 
 let VSConfig: vscode.WorkspaceConfiguration;
 let apiEndpoint: string;
@@ -119,8 +119,6 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 
 				// HTTP stream chunks are not guaranteed to align with Ollama's NDJSON records.
 				let currentPosition = position;
-				let responseBuffer = "";
-				const responseDecoder = new StringDecoder("utf8");
 
 				const processCompletion = async (line: string) => {
 					progress.report({ message: "Generating..." });
@@ -149,28 +147,20 @@ async function autocompleteCommand(textEditor: vscode.TextEditor, cancellationTo
 					textEditor.selection = newSelection;
 				};
 
-				response.data.on('data', async (d: Uint8Array) => {
-					responseBuffer += responseDecoder.write(Buffer.from(d));
-					const records = responseBuffer.split("\n");
-					responseBuffer = records.pop() || "";
-					for (const record of records) {
-						if (record.trim() !== "") await processCompletion(record);
-					}
+				// Consume records serially so editor edits cannot overlap between stream events.
+				const streamFinished = consumeNdjsonStream(response.data, processCompletion).then(() => {
+					progress.report({ message: "Ollama completion finished." });
+					return true;
+				}).catch((err) => {
+					handleError(err);
+					return false;
 				});
 
 				// Keep cancel window available
-				const finished = new Promise((resolve) => {
-					response.data.on('end', async () => {
-						responseBuffer += responseDecoder.end();
-						if (responseBuffer.trim() !== "") await processCompletion(responseBuffer);
-						progress.report({ message: "Ollama completion finished." });
-						resolve(true);
-					});
-					axiosCancelToken.promise.finally(() => { // prevent notification from freezing on user input cancel
-						resolve(false);
-					});
-				});
-
+				const finished = Promise.race([
+					streamFinished,
+					axiosCancelToken.promise.then(() => false)
+				]);
 				await finished;
 
 			} catch (err: any) {
